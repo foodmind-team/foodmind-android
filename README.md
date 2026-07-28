@@ -2,7 +2,7 @@
 
 FoodMind Android is the native mobile client for FoodMind. It must expose the same business capabilities, validation semantics, permission outcomes, and backend metrics as the Web client while using mobile-appropriate navigation and interaction patterns.
 
-> **Current status:** Android project scaffold plus directory framework. The existing activity still uses the original XML/AppCompat template; the planned Jetpack Compose architecture and FoodMind features are not yet implemented.
+> **Current status:** the repository includes a native XML/AppCompat recommendation-first UX prototype with a two-mode home shell, a prominent generation action, group context, Explore preview, and labeled bottom navigation. The target Compose architecture, backend integration, authentication, production feature screens, charts, and automated tests remain to be implemented.
 
 ## Responsibilities
 
@@ -15,9 +15,11 @@ The Android application is responsible for:
 - History and filters
 - Trusted groups and group feed
 - Want to Try
-- Recommendation context and result cards
+- A recommendation-first home with an **Eat out & delivery / Cooking** mode switch
+- One lead recommendation at a time, with access to alternate candidates
 - Acceptance, rejection, re-recommendation, and later rating
-- Cooking-plan input and output
+- Cooking-plan input and output from manually supplied pantry/inventory context
+- Permission-safe Explore presentation for group-visible and curated posts
 - FoodMind Chatbot sessions and grounded references
 - Dashboard charts and weekly recap
 - Mobile accessibility, lifecycle handling, and offline-aware UX
@@ -138,6 +140,12 @@ UI state should represent:
 - Network failure
 - Recommendation fallback
 
+The app shell also owns explicit mode and destination state:
+
+- Home mode: `EAT_OUT_DELIVERY` or `COOKING`
+- Destination: Home, Groups, Explore, Saved, or Me
+- Recommendation candidate position within the ordered result set
+
 Avoid exposing Retrofit response types directly to Composables.
 
 ## API Contract
@@ -195,6 +203,7 @@ Use Android Studio for emulator and instrumented-test workflows. See [local deve
 - Navigation tests for protected routes
 - Instrumented tests for critical end-to-end paths
 - Shared UAT scenarios for UC-01 through UC-09
+- UI tests for the default recommendation mode, Cooking switch, lead-result generation, Groups navigation, and permission-safe Explore content
 - Contract fixtures matching the backend OpenAPI version
 
 ## Contribution Workflow

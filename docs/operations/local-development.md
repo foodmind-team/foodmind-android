@@ -82,6 +82,10 @@ Use MockWebServer and fixtures aligned with OpenAPI. Include:
 
 Mocks must not invent fields absent from the canonical contract.
 
+Recommendation fixtures should contain an ordered candidate set so the UI can
+test a lead result followed by alternate Personal, Exploratory, and
+Group-inspired candidates.
+
 ## Debug Logging
 
 Debug logging may include:
@@ -110,6 +114,11 @@ Release builds must not enable verbose HTTP-body logging.
 - Run relevant Compose UI tests.
 - Verify an emulator happy path.
 - Verify a failure/retry path.
+- Confirm **Eat out & delivery** is the default mode and the primary generate
+  action appears in the first viewport.
+- Switch to Cooking and verify pantry/time/budget context replaces
+  recommendation context.
+- Verify Groups and Explore destinations preserve permission-safe content.
 - Confirm no generated, local, signing, or device file is staged.
 - Confirm only the public backend URL is referenced.
 - Record any required backend-contract version.
