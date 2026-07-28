@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/navigation_today"
+        android:icon="@drawable/ic_home"
+        android:title="@string/today" />
+    <item
+        android:id="@+id/navigation_discover"
+        android:icon="@drawable/ic_discover"
+        android:title="@string/discover" />
+    <item
+        android:id="@+id/navigation_plan"
+        android:icon="@drawable/ic_calendar"
+        android:title="@string/my_plan" />
+    <item
+        android:id="@+id/navigation_groups"
+        android:icon="@drawable/ic_groups"
+        android:title="@string/groups" />
+    <item
+        android:id="@+id/navigation_progress"
+        android:icon="@drawable/ic_progress"
+        android:title="@string/progress" />
+</menu>
