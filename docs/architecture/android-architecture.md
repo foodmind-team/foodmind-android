@@ -3,6 +3,7 @@
 ## Goals
 
 - Native Android experience using Compose.
+- Recommendation-first home experience with Cooking available through the same top-level mode switch.
 - Behavioural parity with FoodMind Web.
 - Lifecycle-safe, observable state.
 - Clear separation between presentation, domain coordination, and data access.
@@ -116,6 +117,19 @@ Keep three independent AI entry points:
 
 The Chatbot must not become a hidden navigation path to recommendation or cooking.
 
+At the presentation layer, the first two entry points share a top-level mode
+switch:
+
+- **Eat out & delivery** is the default and shows the primary Generate Recommendation action.
+- **Cooking** replaces recommendation context with manually supplied pantry,
+  time, budget, serving, and dietary context.
+- The Chatbot remains a separate destination and workflow.
+
+Persistent labeled navigation contains Home, Groups, Explore, Saved, and Me.
+Groups is a core shared workspace. Explore may show only group-visible records
+and curated platform content that the backend authorises; it is not a public
+social feed.
+
 Navigation arguments should contain identifiers, not large serialised objects. Screens reload authorised data from the backend.
 
 ## Network Boundary
@@ -152,7 +166,8 @@ Backend field errors must map back to form fields.
 UI state should retain:
 
 - Session ID
-- Three recommendation types
+- The ordered candidate set containing Personal, Exploratory, and Group-inspired types
+- The currently spotlighted lead candidate
 - Candidate identifiers
 - Grounded explanation and reason codes
 - Model version/status when supplied
@@ -160,6 +175,11 @@ UI state should retain:
 - Feedback submission state
 
 Do not derive explanations from score values on-device.
+
+The backend may return up to three intentionally different candidates. Android
+initially displays one lead result and moves through the returned alternatives
+with an explicit “try another” action; this does not silently create a new
+session.
 
 ## Local Persistence
 
