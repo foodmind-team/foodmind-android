@@ -12,20 +12,19 @@ class FoodMindDateTimeTest {
     fun formatsIsoTimestampForPeopleInsteadOfShowingWireFormat() {
         val formatted = formatFoodMindTimestamp("2026-08-02T09:05:00Z", Locale.US, ZoneOffset.UTC)
 
-        assertTrue(formatted.contains("Aug"))
-        assertTrue(formatted.contains("2026"))
+        assertEquals("02/08/2026 09:05", formatted)
         assertFalse(formatted.contains("T"))
         assertFalse(formatted.endsWith("Z"))
     }
 
     @Test
     fun editorUsesReadableLocalInputAndConvertsItBackToIso() {
-        assertEquals("2026-08-02 09:05", formatFoodMindTimestampForEditor("2026-08-02T09:05:00Z", ZoneOffset.UTC))
-        assertEquals("2026-08-02T09:05:00Z", normaliseFoodMindTimestamp("2026-08-02 09:05", ZoneOffset.UTC))
+        assertEquals("02/08/2026 09:05", formatFoodMindTimestampForEditor("2026-08-02T09:05:00Z", ZoneOffset.UTC))
+        assertEquals("2026-08-02T09:05:00Z", normaliseFoodMindTimestamp("02/08/2026 09:05", ZoneOffset.UTC))
     }
 
     @Test
     fun defaultsToSingaporeTime() {
-        assertEquals("2026-08-02 17:05", formatFoodMindTimestampForEditor("2026-08-02T09:05:00Z"))
+        assertEquals("02/08/2026 17:05", formatFoodMindTimestampForEditor("2026-08-02T09:05:00Z"))
     }
 }

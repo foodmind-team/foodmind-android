@@ -5,10 +5,9 @@ import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.util.Locale
 
-private val editorDateTimeFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+private val singaporeDateTimeFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
 private val foodMindLocale: Locale = Locale.forLanguageTag("en-SG")
 private val foodMindZoneId: ZoneId = ZoneId.of("Asia/Singapore")
 
@@ -23,15 +22,10 @@ fun formatFoodMindTimestamp(
     val instant = runCatching { Instant.parse(source) }.getOrNull()
         ?: runCatching { OffsetDateTime.parse(source).toInstant() }.getOrNull()
     if (instant != null) {
-        return DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)
-            .withLocale(locale)
-            .withZone(zoneId)
-            .format(instant)
+        return singaporeDateTimeFormat.withLocale(locale).withZone(zoneId).format(instant)
     }
     return runCatching {
-        LocalDateTime.parse(source).format(
-            DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM).withLocale(locale),
-        )
+        LocalDateTime.parse(source).format(singaporeDateTimeFormat.withLocale(locale))
     }.getOrElse { source }
 }
 
@@ -39,7 +33,7 @@ fun formatFoodMindTimestamp(
 fun formatFoodMindTimestampForEditor(value: String, zoneId: ZoneId = foodMindZoneId): String {
     val instant = runCatching { Instant.parse(value) }.getOrNull()
         ?: runCatching { OffsetDateTime.parse(value).toInstant() }.getOrNull()
-    return instant?.atZone(zoneId)?.format(editorDateTimeFormat) ?: value
+    return instant?.atZone(zoneId)?.format(singaporeDateTimeFormat) ?: value
 }
 
 /** Accepts a Singapore date/time or pasted ISO-8601 timestamp and returns an API value. */
@@ -47,5 +41,5 @@ fun normaliseFoodMindTimestamp(value: String, zoneId: ZoneId = foodMindZoneId): 
     val source = value.trim()
     return runCatching { Instant.parse(source).toString() }.getOrNull()
         ?: runCatching { OffsetDateTime.parse(source).toInstant().toString() }.getOrNull()
-        ?: runCatching { LocalDateTime.parse(source, editorDateTimeFormat).atZone(zoneId).toInstant().toString() }.getOrNull()
+        ?: runCatching { LocalDateTime.parse(source, singaporeDateTimeFormat).atZone(zoneId).toInstant().toString() }.getOrNull()
 }
