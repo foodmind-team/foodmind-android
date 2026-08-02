@@ -91,20 +91,20 @@ private fun RecordCollectionScreen(client: FoodMindApiClient, onBack: () -> Unit
     LaunchedEffect(refresh) {
         loading = true
         runCatching { coroutineScope { val foodCall = async { client.foodRecords().items }; val drinkCall = async { client.drinkRecords().items }; foodCall.await() to drinkCall.await() } }
-            .onSuccess { food = it.first; drinks = it.second; error = null }.onFailure { error = "记录加载失败。" }
+            .onSuccess { food = it.first; drinks = it.second; error = null }.onFailure { error = "Could not load records." }
         loading = false
     }
-    FoodMindDetailScaffold("记录", onBack) { padding ->
+    FoodMindDetailScaffold("Records", onBack) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             PrimaryTabRow(tab) {
-                Tab(tab == 0, { tab = 0 }, text = { Text("餐食 ${food.size}") })
-                Tab(tab == 1, { tab = 1 }, text = { Text("饮品 ${drinks.size}") })
+                Tab(tab == 0, { tab = 0 }, text = { Text("Meal ${food.size}") })
+                Tab(tab == 1, { tab = 1 }, text = { Text("Drink ${drinks.size}") })
             }
             when {
                 loading -> CircularProgressIndicator(Modifier.padding(24.dp))
-                error != null -> Column(Modifier.padding(24.dp)) { Text(error!!, color = FoodMindCoral); TextButton(onClick = { refresh++ }) { Text("重试") } }
+                error != null -> Column(Modifier.padding(24.dp)) { Text(error!!, color = FoodMindCoral); TextButton(onClick = { refresh++ }) { Text("Try again") } }
                 else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    item { Button(onClick = { onAdd(if (tab == 0) "FOOD" else "DRINK") }, modifier = Modifier.fillMaxWidth()) { Text(if (tab == 0) "记录一餐" else "记录一杯饮品") } }
+                    item { Button(onClick = { onAdd(if (tab == 0) "FOOD" else "DRINK") }, modifier = Modifier.fillMaxWidth()) { Text(if (tab == 0) "Record a meal" else "Record a drink") } }
                     if (tab == 0) items(food, key = FoodRecordResponse::id) { record -> RecordListCard(record.mealNameSnapshot, record.placeNameSnapshot, record.occurredAt, record.rating) { onOpen("FOOD", record.id) } }
                     else items(drinks, key = DrinkRecordResponse::id) { record -> RecordListCard(record.drinkName, record.shopNameSnapshot, record.occurredAt, record.rating) { onOpen("DRINK", record.id) } }
                 }
@@ -118,7 +118,7 @@ private fun RecordListCard(title: String, context: String?, occurredAt: String, 
     Card(onClick = onClick, colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Text(title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-            Text(listOfNotNull(context, rating?.let { "评分 $it" }).joinToString(" · "), color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp))
+            Text(listOfNotNull(context, rating?.let { "Rating $it" }).joinToString(" · "), color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp))
             Text(occurredAt, color = FoodMindMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
         }
     }
@@ -170,31 +170,31 @@ private fun RecordEditorScreen(
             if (type == "DRINK") client.drinkRecord(id).let { RecordFormSeed(it.drinkName, it.shopNameSnapshot, it.occurredAt, it.price?.amount?.toString().orEmpty(), it.price?.currency ?: "SGD", it.rating?.toString().orEmpty(), it.comment.orEmpty(), it.visibility, it.wouldBuyAgain, it.sweetnessLevel?.toString().orEmpty(), it.iceLevel?.toString().orEmpty(), it.groupId.orEmpty(), it.mediaAssetId, it.version) }
             else client.foodRecord(id).let { RecordFormSeed(it.mealNameSnapshot, it.placeNameSnapshot.orEmpty(), it.occurredAt, it.price?.amount?.toString().orEmpty(), it.price?.currency ?: "SGD", it.rating?.toString().orEmpty(), it.comment.orEmpty(), it.visibility, it.wouldEatAgain, groupId = it.groupId.orEmpty(), mediaAssetId = it.mediaAssetId, version = it.version) }
         }.onSuccess { loaded -> seed = loaded; name = loaded.name; place = loaded.place; occurredAt = loaded.occurredAt; price = loaded.price; currency = loaded.currency; rating = loaded.rating; comment = loaded.comment; visibility = loaded.visibility; repeat = loaded.repeat; sweetness = loaded.sweetness; ice = loaded.ice; groupId = loaded.groupId; mediaAssetId = loaded.mediaAssetId; originalMediaAssetId = loaded.mediaAssetId; version = loaded.version }
-            .onFailure { error = "记录加载失败。" }
+            .onFailure { error = "Could not load records." }
     }
-    FoodMindDetailScaffold(if (id == null) "新增记录" else "编辑记录", onBack) { padding ->
+    FoodMindDetailScaffold(if (id == null) "Add record" else "Edit record", onBack) { padding ->
         if (seed == null && error == null) CircularProgressIndicator(Modifier.padding(padding).padding(24.dp)) else LazyColumn(
             Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(13.dp),
         ) {
-            item { Text(if (type == "DRINK") "记录一杯饮品" else "记录一餐", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold); Text("保存到当前后端账号。", color = FoodMindMuted) }
-            item { OutlinedTextField(name, { name = it }, label = { Text(if (type == "DRINK") "饮品名称" else "餐食名称") }, modifier = Modifier.fillMaxWidth()) }
-            item { OutlinedTextField(place, { place = it }, label = { Text(if (type == "DRINK") "店铺" else "地点") }, modifier = Modifier.fillMaxWidth()) }
-            item { OutlinedTextField(occurredAt, { occurredAt = it }, label = { Text("发生时间（ISO 8601）") }, modifier = Modifier.fillMaxWidth()) }
-            item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(price, { price = it }, label = { Text("价格") }, modifier = Modifier.weight(1f)); OutlinedTextField(currency, { currency = it.uppercase().take(3) }, label = { Text("币种") }, modifier = Modifier.weight(1f)) } }
-            item { OutlinedTextField(rating, { rating = it }, label = { Text("评分") }, modifier = Modifier.fillMaxWidth()) }
-            if (type == "DRINK") item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(sweetness, { sweetness = it.filter(Char::isDigit) }, label = { Text("甜度") }, modifier = Modifier.weight(1f)); OutlinedTextField(ice, { ice = it.filter(Char::isDigit) }, label = { Text("冰量") }, modifier = Modifier.weight(1f)) } }
-            item { OutlinedTextField(comment, { comment = it }, label = { Text("评论") }, minLines = 3, modifier = Modifier.fillMaxWidth()) }
-            item { Text("可见范围", fontWeight = FontWeight.Bold); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("PRIVATE", "GROUP").forEach { FilterChip(visibility == it, { visibility = it }, label = { Text(if (it == "PRIVATE") "仅自己" else "群组") }) } }; if (visibility == "GROUP") OutlinedTextField(groupId, { groupId = it }, label = { Text("群组 ID") }, modifier = Modifier.fillMaxWidth()) }
-            item { Text(if (type == "DRINK") "会再次购买？" else "会再次吃？", fontWeight = FontWeight.Bold); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(true to "会", false to "不会").forEach { (value, label) -> FilterChip(repeat == value, { repeat = value }, label = { Text(label) }) } } }
+            item { Text(if (type == "DRINK") "Record a drink" else "Record a meal", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold); Text("Save to your current backend account.", color = FoodMindMuted) }
+            item { OutlinedTextField(name, { name = it }, label = { Text(if (type == "DRINK") "DrinkName" else "MealName") }, modifier = Modifier.fillMaxWidth()) }
+            item { OutlinedTextField(place, { place = it }, label = { Text(if (type == "DRINK") "Shop" else "Place") }, modifier = Modifier.fillMaxWidth()) }
+            item { OutlinedTextField(occurredAt, { occurredAt = it }, label = { Text("Occurred at（ISO 8601）") }, modifier = Modifier.fillMaxWidth()) }
+            item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(price, { price = it }, label = { Text("Price") }, modifier = Modifier.weight(1f)); OutlinedTextField(currency, { currency = it.uppercase().take(3) }, label = { Text("Currency") }, modifier = Modifier.weight(1f)) } }
+            item { OutlinedTextField(rating, { rating = it }, label = { Text("Rating") }, modifier = Modifier.fillMaxWidth()) }
+            if (type == "DRINK") item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(sweetness, { sweetness = it.filter(Char::isDigit) }, label = { Text("Sweetness") }, modifier = Modifier.weight(1f)); OutlinedTextField(ice, { ice = it.filter(Char::isDigit) }, label = { Text("Ice level") }, modifier = Modifier.weight(1f)) } }
+            item { OutlinedTextField(comment, { comment = it }, label = { Text("Comment") }, minLines = 3, modifier = Modifier.fillMaxWidth()) }
+            item { Text("Visibility", fontWeight = FontWeight.Bold); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("PRIVATE", "GROUP").forEach { FilterChip(visibility == it, { visibility = it }, label = { Text(if (it == "PRIVATE") "Only me" else "Groups") }) } }; if (visibility == "GROUP") OutlinedTextField(groupId, { groupId = it }, label = { Text("Group ID") }, modifier = Modifier.fillMaxWidth()) }
+            item { Text(if (type == "DRINK") "Would buy again?" else "Would eat again?", fontWeight = FontWeight.Bold); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(true to "Yes", false to "No").forEach { (value, label) -> FilterChip(repeat == value, { repeat = value }, label = { Text(label) }) } } }
             item {
-                OutlinedButton(onClick = { picker.launch("image/*") }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.AddAPhoto, null); Text(if (selectedImage != null) "已选择新图片" else if (mediaAssetId != null) "替换已上传图片" else "添加安全图片", modifier = Modifier.padding(start = 8.dp)) }
-                if (mediaAssetId != null || selectedImage != null) TextButton(onClick = { selectedImage = null; mediaAssetId = null }) { Text("移除图片") }
+                OutlinedButton(onClick = { picker.launch("image/*") }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.AddAPhoto, null); Text(if (selectedImage != null) "New image selected" else if (mediaAssetId != null) "Replace uploaded image" else "Add image", modifier = Modifier.padding(start = 8.dp)) }
+                if (mediaAssetId != null || selectedImage != null) TextButton(onClick = { selectedImage = null; mediaAssetId = null }) { Text("Remove image") }
             }
             item {
                 error?.let { Text(it, color = FoodMindCoral) }
                 Button(
                     onClick = { scope.launch {
-                        if (name.isBlank()) { error = "请填写名称。"; return@launch }
+                        if (name.isBlank()) { error = "Enter a name."; return@launch }
                         saving = true; error = null
                         var newlyUploadedId: String? = null
                         runCatching {
@@ -211,11 +211,11 @@ private fun RecordEditorScreen(
                             originalMediaAssetId?.takeIf { it != uploadedId }?.let { runCatching { client.deleteMediaAsset(it) } }
                         }.onSuccess { onBack() }.onFailure {
                             newlyUploadedId?.let { uploaded -> runCatching { client.deleteMediaAsset(uploaded) } }
-                            error = it.message ?: "保存失败，请检查输入。"
+                            error = it.message ?: "Could not save. Check your input."
                         }
                         saving = false
                     } }, enabled = !saving, modifier = Modifier.fillMaxWidth(),
-                ) { Text(if (saving) "保存中…" else "保存记录") }
+                ) { Text(if (saving) "Saving…" else "Save record") }
             }
         }
     }
@@ -237,15 +237,15 @@ class RecordDetailActivity : ComponentActivity() {
 private fun RecordDetailScreen(client: FoodMindApiClient, type: String, id: String, onBack: () -> Unit, onEdit: () -> Unit, onDeleted: () -> Unit) {
     var seed by remember { mutableStateOf<RecordFormSeed?>(null) }; var error by remember { mutableStateOf<String?>(null) }; var refresh by remember { mutableIntStateOf(0) }; val scope = rememberCoroutineScope()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh++ }
-    LaunchedEffect(id, refresh) { runCatching { if (type == "DRINK") client.drinkRecord(id).let { RecordFormSeed(it.drinkName, it.shopNameSnapshot, it.occurredAt, it.price?.amount?.toString().orEmpty(), it.price?.currency ?: "", it.rating?.toString().orEmpty(), it.comment.orEmpty(), it.visibility, it.wouldBuyAgain, it.sweetnessLevel?.toString().orEmpty(), it.iceLevel?.toString().orEmpty(), it.groupId.orEmpty(), it.mediaAssetId, it.version) } else client.foodRecord(id).let { RecordFormSeed(it.mealNameSnapshot, it.placeNameSnapshot.orEmpty(), it.occurredAt, it.price?.amount?.toString().orEmpty(), it.price?.currency ?: "", it.rating?.toString().orEmpty(), it.comment.orEmpty(), it.visibility, it.wouldEatAgain, groupId = it.groupId.orEmpty(), mediaAssetId = it.mediaAssetId, version = it.version) } }.onSuccess { seed = it }.onFailure { error = "记录加载失败。" } }
-    FoodMindDetailScaffold("记录详情", onBack, actions = { IconButton(onClick = onEdit) { Icon(Icons.Outlined.Edit, "编辑") }; IconButton(onClick = { scope.launch { runCatching { if (type == "DRINK") client.deleteDrinkRecord(id) else client.deleteFoodRecord(id); seed?.mediaAssetId?.let { runCatching { client.deleteMediaAsset(it) } } }.onSuccess { onDeleted() }.onFailure { error = "删除失败。" } } }) { Icon(Icons.Outlined.DeleteOutline, "删除") } }) { padding ->
+    LaunchedEffect(id, refresh) { runCatching { if (type == "DRINK") client.drinkRecord(id).let { RecordFormSeed(it.drinkName, it.shopNameSnapshot, it.occurredAt, it.price?.amount?.toString().orEmpty(), it.price?.currency ?: "", it.rating?.toString().orEmpty(), it.comment.orEmpty(), it.visibility, it.wouldBuyAgain, it.sweetnessLevel?.toString().orEmpty(), it.iceLevel?.toString().orEmpty(), it.groupId.orEmpty(), it.mediaAssetId, it.version) } else client.foodRecord(id).let { RecordFormSeed(it.mealNameSnapshot, it.placeNameSnapshot.orEmpty(), it.occurredAt, it.price?.amount?.toString().orEmpty(), it.price?.currency ?: "", it.rating?.toString().orEmpty(), it.comment.orEmpty(), it.visibility, it.wouldEatAgain, groupId = it.groupId.orEmpty(), mediaAssetId = it.mediaAssetId, version = it.version) } }.onSuccess { seed = it }.onFailure { error = "Could not load records." } }
+    FoodMindDetailScaffold("Record details", onBack, actions = { IconButton(onClick = onEdit) { Icon(Icons.Outlined.Edit, "Edit") }; IconButton(onClick = { scope.launch { runCatching { if (type == "DRINK") client.deleteDrinkRecord(id) else client.deleteFoodRecord(id); seed?.mediaAssetId?.let { runCatching { client.deleteMediaAsset(it) } } }.onSuccess { onDeleted() }.onFailure { error = "Could not delete the record." } } }) { Icon(Icons.Outlined.DeleteOutline, "Delete") } }) { padding ->
         val data = seed
         if (data == null) Column(Modifier.padding(padding).padding(24.dp)) { if (error == null) CircularProgressIndicator() else Text(error!!, color = FoodMindCoral) }
         else LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item { Text(data.name, fontSize = 29.sp, fontWeight = FontWeight.ExtraBold); Text(listOf(data.place, data.occurredAt).filter(String::isNotBlank).joinToString(" · "), color = FoodMindMuted) }
-            item { FoodMindSurfaceCard { Column { listOf("价格" to listOf(data.price, data.currency).filter(String::isNotBlank).joinToString(" "), "评分" to data.rating, "可见范围" to data.visibility, "再次选择" to when (data.repeat) { true -> "是"; false -> "否"; null -> "未记录" }).forEach { (label, value) -> Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) { Text(label, Modifier.weight(1f), color = FoodMindMuted); Text(value.ifBlank { "未记录" }, Modifier.weight(1f)) } } } } }
-            if (data.comment.isNotBlank()) item { FoodMindSurfaceCard { Column { Text("评论", fontWeight = FontWeight.Bold); Text(data.comment, Modifier.padding(top = 7.dp)) } } }
-            if (data.mediaAssetId != null) item { Text("此记录引用一个已上传的安全图片资源：${data.mediaAssetId}", color = FoodMindMuted, fontSize = 12.sp) }
+            item { FoodMindSurfaceCard { Column { listOf("Price" to listOf(data.price, data.currency).filter(String::isNotBlank).joinToString(" "), "Rating" to data.rating, "Visibility" to data.visibility, "Choose again" to when (data.repeat) { true -> "Yes"; false -> "No"; null -> "Not recorded" }).forEach { (label, value) -> Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) { Text(label, Modifier.weight(1f), color = FoodMindMuted); Text(value.ifBlank { "Not recorded" }, Modifier.weight(1f)) } } } } }
+            if (data.comment.isNotBlank()) item { FoodMindSurfaceCard { Column { Text("Comment", fontWeight = FontWeight.Bold); Text(data.comment, Modifier.padding(top = 7.dp)) } } }
+            if (data.mediaAssetId != null) item { Text("This record references an uploaded image asset: ${data.mediaAssetId}", color = FoodMindMuted, fontSize = 12.sp) }
             error?.let { item { Text(it, color = FoodMindCoral) } }
         }
     }

@@ -19,7 +19,7 @@ class MediaUploadRepository(
 ) {
     suspend fun upload(contentResolver: ContentResolver, uri: Uri): String = withContext(Dispatchers.IO) {
         val contentType = contentResolver.getType(uri)?.takeIf { it.startsWith("image/") } ?: "image/jpeg"
-        require(contentType in ALLOWED_TYPES) { "仅支持 JPEG、PNG 或 WebP 图片" }
+        require(contentType in ALLOWED_TYPES) { "Only JPEG, PNG, or WebP images are supported." }
         val bytes = contentResolver.openInputStream(uri)?.use { input ->
             val output = ByteArrayOutputStream()
             val buffer = ByteArray(8 * 1024)
@@ -28,12 +28,12 @@ class MediaUploadRepository(
                 val read = input.read(buffer)
                 if (read < 0) break
                 total += read
-                require(total <= MAX_BYTES) { "图片必须小于 5 MB" }
+                require(total <= MAX_BYTES) { "Images must be smaller than 5 MB." }
                 output.write(buffer, 0, read)
             }
             output.toByteArray()
-        } ?: error("无法读取所选图片")
-        require(bytes.isNotEmpty()) { "图片不能为空" }
+        } ?: error("Could not read the selected image.")
+        require(bytes.isNotEmpty()) { "The image cannot be empty." }
         val checksum = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
         val instruction = client.createMediaUpload(CreateMediaUploadRequest(contentType, bytes.size.toLong(), checksum))
         val request = Request.Builder().url(instruction.uploadUrl).put(bytes.toRequestBody(contentType.toMediaType())).apply {
@@ -42,7 +42,7 @@ class MediaUploadRepository(
         http.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 runCatching { client.deleteMediaAsset(instruction.mediaAssetId) }
-                error("图片上传失败（${response.code}）")
+                error("Image upload failed (${response.code}）")
             }
         }
         client.finaliseMediaUpload(instruction.mediaAssetId).mediaAssetId

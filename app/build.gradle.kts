@@ -3,7 +3,12 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-val configuredApiBaseUrl = providers.environmentVariable("FOODMIND_API_BASE_URL")
+val debugApiBaseUrl = providers.gradleProperty("foodmind.debugApiBaseUrl")
+    .orElse(providers.environmentVariable("FOODMIND_API_BASE_URL"))
+    // 10.0.2.2 is the Android Emulator's route to the development host.
+    .orElse("http://10.0.2.2:8080/api/v1/")
+
+val releaseApiBaseUrl = providers.environmentVariable("FOODMIND_API_BASE_URL")
     .orElse(providers.gradleProperty("foodmind.apiBaseUrl"))
     .orElse("https://api.foodmind.example/api/v1/")
 
@@ -33,13 +38,13 @@ android {
     }
     buildTypes {
         debug {
-            buildConfigField("String", "FOODMIND_API_BASE_URL", "\"http://10.0.2.2:8080/api/v1/\"")
+            buildConfigField("String", "FOODMIND_API_BASE_URL", "\"${debugApiBaseUrl.get()}\"")
         }
         release {
             optimization {
                 enable = false
             }
-            buildConfigField("String", "FOODMIND_API_BASE_URL", "\"${configuredApiBaseUrl.get()}\"")
+            buildConfigField("String", "FOODMIND_API_BASE_URL", "\"${releaseApiBaseUrl.get()}\"")
         }
     }
 }

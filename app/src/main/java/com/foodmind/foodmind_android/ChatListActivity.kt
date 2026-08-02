@@ -52,19 +52,19 @@ private fun ChatListScreen(client: FoodMindApiClient, onBack: () -> Unit, onOpen
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) { runCatching { client.chatSessions().items }.onSuccess { sessions = it }.onFailure { error = "会话列表加载失败。" }; loading = false }
-    FoodMindDetailScaffold("消息", onBack, actions = { IconButton(onClick = { onOpen(null) }) { Icon(Icons.Outlined.Add, "新对话") } }) { padding ->
+    LaunchedEffect(Unit) { runCatching { client.chatSessions().items }.onSuccess { sessions = it }.onFailure { error = "Could not load conversations." }; loading = false }
+    FoodMindDetailScaffold("Messages", onBack, actions = { IconButton(onClick = { onOpen(null) }) { Icon(Icons.Outlined.Add, "New conversation") } }) { padding ->
         when {
             loading -> CircularProgressIndicator(Modifier.padding(padding).padding(24.dp))
             else -> LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                item { Text("FoodMind 对话", fontWeight = FontWeight.ExtraBold); error?.let { Text(it, color = FoodMindCoral) } }
-                if (sessions.isEmpty() && error == null) item { FoodMindSurfaceCard { Text("还没有对话。点右上角开始。") } }
+                item { Text("FoodMind conversations", fontWeight = FontWeight.ExtraBold); error?.let { Text(it, color = FoodMindCoral) } }
+                if (sessions.isEmpty() && error == null) item { FoodMindSurfaceCard { Text("No conversations yet. Use the button above to start one.") } }
                 items(sessions, key = { it.id.orEmpty() }) { session ->
                     Card(onClick = { onOpen(session.id) }, colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
                         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                             FoodMindAvatar("F")
-                            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) { Text(session.title ?: "FoodMind 助手", fontWeight = FontWeight.Bold); Text(session.updatedAt.orEmpty(), color = FoodMindMuted) }
-                            IconButton(onClick = { session.id?.let { id -> scope.launch { runCatching { client.deleteChatSession(id) }.onSuccess { sessions = sessions.filterNot { it.id == id } } } } }) { Icon(Icons.Outlined.DeleteOutline, "归档") }
+                            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) { Text(session.title ?: "FoodMind Assistant", fontWeight = FontWeight.Bold); Text(session.updatedAt.orEmpty(), color = FoodMindMuted) }
+                            IconButton(onClick = { session.id?.let { id -> scope.launch { runCatching { client.deleteChatSession(id) }.onSuccess { sessions = sessions.filterNot { it.id == id } } } } }) { Icon(Icons.Outlined.DeleteOutline, "Archive") }
                         }
                     }
                 }

@@ -98,23 +98,23 @@ private fun SavedScreen(
         loading = true
         runCatching { client.wantToTry().items }
             .onSuccess { saved = it; error = null }
-            .onFailure { error = "暂时无法加载想尝试列表。" }
+            .onFailure { error = "Could not load your Want to Try list." }
         recipes = RecipeDraftStore.list()
         loading = false
     }
 
     FoodMindRootScaffold(
         selected = FoodMindRoot.SAVED,
-        title = "收藏",
+        title = "Saved",
         onNavigate = onNavigate,
         topActions = {
-            IconButton(onClick = onAddRecipe) { Icon(Icons.Outlined.Add, contentDescription = "新增菜谱") }
+            IconButton(onClick = onAddRecipe) { Icon(Icons.Outlined.Add, contentDescription = "Add recipe") }
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             PrimaryTabRow(selectedTabIndex = tab, containerColor = Color.White, contentColor = FoodMindGreen) {
-                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("想尝试 ${saved.size}", fontWeight = FontWeight.Bold) })
-                Tab(selected = tab == 1, onClick = { tab = 1; recipes = RecipeDraftStore.list() }, text = { Text("本地菜谱 ${recipes.size}", fontWeight = FontWeight.Bold) })
+                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Want to Try ${saved.size}", fontWeight = FontWeight.Bold) })
+                Tab(selected = tab == 1, onClick = { tab = 1; recipes = RecipeDraftStore.list() }, text = { Text("Local recipes ${recipes.size}", fontWeight = FontWeight.Bold) })
             }
             when {
                 loading -> CircularProgressIndicator(Modifier.padding(24.dp))
@@ -127,7 +127,7 @@ private fun SavedScreen(
                         saved = saved.filterNot { it.id == item.id }
                         error = null
                         // Mutation is reconciled by the next refresh if the request fails.
-                        scope.launch { runCatching { client.deleteWantToTry(item.id) }.onFailure { error = "移除失败，请刷新后重试。" } }
+                        scope.launch { runCatching { client.deleteWantToTry(item.id) }.onFailure { error = "Could not remove this item. Refresh and try again." } }
                     },
                 )
                 else -> RecipeDrafts(
@@ -156,15 +156,15 @@ private fun SavedIdeas(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Text("留到合适的时候", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = FoodMindInk)
-            Text("保存的餐点、地点、产品和社区内容会集中在这里。", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp))
+            Text("Save it for the right moment", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = FoodMindInk)
+            Text("Saved meals, places, products, and community content appear here.", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp))
             error?.let {
                 Text(it, color = FoodMindCoral, modifier = Modifier.padding(top = 12.dp))
-                TextButton(onClick = onRetry) { Text("重试") }
+                TextButton(onClick = onRetry) { Text("Try again") }
             }
         }
         if (items.isEmpty() && error == null) item {
-            FoodMindSurfaceCard { Column { Text("还没有收藏", fontWeight = FontWeight.Bold); Text("在发现页点“想尝试”，内容就会出现在这里。", color = FoodMindMuted) } }
+            FoodMindSurfaceCard { Column { Text("Nothing saved yet", fontWeight = FontWeight.Bold); Text("Save an item from Discover and it will appear here.", color = FoodMindMuted) } }
         }
         items(items, key = { it.id }) { item ->
             Card(
@@ -176,11 +176,11 @@ private fun SavedIdeas(
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     FoodMindAvatar(item.sourceType)
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                        Text(item.source?.title ?: "内容已不可用", fontWeight = FontWeight.Bold, color = FoodMindInk)
+                        Text(item.source?.title ?: "Content unavailable", fontWeight = FontWeight.Bold, color = FoodMindInk)
                         item.source?.subtitle?.takeIf(String::isNotBlank)?.let { Text(it, color = FoodMindMuted, fontSize = 13.sp) }
                         item.note?.takeIf(String::isNotBlank)?.let { Text(it, color = FoodMindGreen, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp)) }
                     }
-                    IconButton(onClick = { onDelete(item) }) { Icon(Icons.Outlined.DeleteOutline, contentDescription = "移除", tint = FoodMindMuted) }
+                    IconButton(onClick = { onDelete(item) }) { Icon(Icons.Outlined.DeleteOutline, contentDescription = "Remove", tint = FoodMindMuted) }
                     Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = FoodMindMuted)
                 }
             }
@@ -204,13 +204,13 @@ private fun RecipeDrafts(
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("真正能做的菜谱", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold, color = FoodMindInk)
-                    Text("草稿只保存在此设备，并按账号隔离。", color = FoodMindMuted)
+                    Text("Recipes you can cook", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold, color = FoodMindInk)
+                    Text("Drafts stay on this device and are separated by account.", color = FoodMindMuted)
                 }
-                Button(onClick = onCook) { Icon(Icons.Outlined.RestaurantMenu, null); Spacer(Modifier.width(6.dp)); Text("去烹饪") }
+                Button(onClick = onCook) { Icon(Icons.Outlined.RestaurantMenu, null); Spacer(Modifier.width(6.dp)); Text("Start cooking") }
             }
         }
-        if (items.isEmpty()) item { FoodMindSurfaceCard { Text("还没有本地菜谱。") } }
+        if (items.isEmpty()) item { FoodMindSurfaceCard { Text("No local recipes yet.") } }
         items(items, key = RecipeDraft::id) { recipe ->
             Card(
                 onClick = { onEdit(recipe.id) },
@@ -222,17 +222,17 @@ private fun RecipeDrafts(
                     Row(verticalAlignment = Alignment.Top) {
                         Column(Modifier.weight(1f)) {
                             Text(recipe.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = FoodMindInk)
-                            Text("${recipe.servings} 人份 · ${recipe.minutes} 分钟 · ${recipe.category}", color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp))
+                            Text("${recipe.servings} servings · ${recipe.minutes} minutes · ${recipe.category}", color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp))
                         }
-                        IconButton(onClick = { onDelete(recipe.id) }) { Icon(Icons.Outlined.DeleteOutline, contentDescription = "删除菜谱") }
+                        IconButton(onClick = { onDelete(recipe.id) }) { Icon(Icons.Outlined.DeleteOutline, contentDescription = "Delete recipe") }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         recipe.tags.take(3).forEach { AssistChip(onClick = {}, label = { Text(it) }) }
                     }
-                    Text("${recipe.ingredients.size} 种食材 · ${recipe.steps.size} 个步骤", color = FoodMindGreen, fontSize = 12.sp)
+                    Text("${recipe.ingredients.size} ingredients · ${recipe.steps.size} steps", color = FoodMindGreen, fontSize = 12.sp)
                 }
             }
         }
-        item { TextButton(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.Add, null); Text("新增本地菜谱") } }
+        item { TextButton(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.Add, null); Text("Add local recipe") } }
     }
 }

@@ -18,7 +18,7 @@ class GroupRepositoryImpl(private val apiClient: FoodMindApiClient) : GroupRepos
         apiClient.groups().map {
             GroupItem(
                 id = it.id ?: it.name.orEmpty(),
-                name = it.name ?: "未命名群组",
+                name = it.name ?: "Untitled group",
                 description = it.description.orEmpty(),
                 status = it.status ?: "ACTIVE",
             )

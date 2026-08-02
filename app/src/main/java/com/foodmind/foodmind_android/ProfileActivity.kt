@@ -129,23 +129,23 @@ private fun ProfileScreen(
                 ProfileData(user.await(), preferences.await(), history.await())
             }
         }.onSuccess { data = it; error = null }
-            .onFailure { error = "登录后即可管理个人资料与偏好。" }
+            .onFailure { error = "Sign in to manage your profile and preferences." }
         loading = false
     }
     FoodMindRootScaffold(
         selected = FoodMindRoot.ME,
-        title = "我的",
+        title = "Me",
         onNavigate = onNavigate,
-        topActions = { if (data != null) IconButton(onClick = onEdit) { Icon(Icons.Outlined.Edit, contentDescription = "编辑资料") } },
+        topActions = { if (data != null) IconButton(onClick = onEdit) { Icon(Icons.Outlined.Edit, contentDescription = "Edit profile") } },
     ) { padding ->
         when {
             loading -> CircularProgressIndicator(Modifier.padding(padding).padding(24.dp))
             data == null -> Column(Modifier.padding(padding).fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                 FoodMindAvatar("F")
-                Text("让 FoodMind 认识你", fontSize = 25.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 18.dp))
+                Text("Help FoodMind get to know you", fontSize = 25.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 18.dp))
                 Text(error.orEmpty(), color = FoodMindMuted, modifier = Modifier.padding(top = 8.dp))
-                Button(onClick = onLogin, modifier = Modifier.padding(top = 20.dp)) { Text("登录或注册") }
-                TextButton(onClick = { refresh++ }) { Text("我已登录，重新加载") }
+                Button(onClick = onLogin, modifier = Modifier.padding(top = 20.dp)) { Text("Sign in or register") }
+                TextButton(onClick = { refresh++ }) { Text("I have signed in — reload") }
             }
             else -> {
                 val profile = data!!
@@ -155,12 +155,12 @@ private fun ProfileScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 FoodMindAvatar(profile.user.displayName ?: "F")
                                 Column(Modifier.padding(start = 16.dp)) {
-                                    Text(profile.user.displayName ?: "FoodMind 用户", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
+                                    Text(profile.user.displayName ?: "FoodMind user", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
                                     Text(profile.user.email.orEmpty(), color = Color(0xFFCFE5D8))
-                                    Text(profile.user.timeZone ?: "未设置时区", color = Color(0xFF9EC4AE), fontSize = 12.sp)
+                                    Text(profile.user.timeZone ?: "Time zone not set", color = Color(0xFF9EC4AE), fontSize = 12.sp)
                                 }
                             }
-                            Text(profile.preferences.foodGoal ?: "用更少纠结，做更适合自己的饮食决定。", color = Color.White, modifier = Modifier.padding(top = 22.dp), fontWeight = FontWeight.Medium)
+                            Text(profile.preferences.foodGoal ?: "Make food decisions that suit you with less uncertainty.", color = Color.White, modifier = Modifier.padding(top = 22.dp), fontWeight = FontWeight.Medium)
                             FlowRow(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 profile.preferences.dietaryTagCodes.take(3).forEach { FilterChip(selected = true, onClick = onPreferences, label = { Text(it) }) }
                             }
@@ -169,18 +169,18 @@ private fun ProfileScreen(
                     item {
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                ProfileAction("偏好", "饮食、预算与距离", Icons.Outlined.Settings, Modifier.weight(1f), onPreferences)
-                                ProfileAction("洞察", "看板与每周总结", Icons.Outlined.BarChart, Modifier.weight(1f), onDashboard)
+                                ProfileAction("Preferences", "Food preferences, budget, and distance", Icons.Outlined.Settings, Modifier.weight(1f), onPreferences)
+                                ProfileAction("Insights", "Dashboard & weekly recap", Icons.Outlined.BarChart, Modifier.weight(1f), onDashboard)
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                ProfileAction("历史", "吃过与喝过", Icons.Outlined.History, Modifier.weight(1f), onHistory)
-                                ProfileAction("助手", "继续 FoodMind 对话", Icons.Outlined.ChatBubbleOutline, Modifier.weight(1f), onChat)
+                                ProfileAction("History", "Meals and drinks", Icons.Outlined.History, Modifier.weight(1f), onHistory)
+                                ProfileAction("Assistant", "Continue your FoodMind conversation", Icons.Outlined.ChatBubbleOutline, Modifier.weight(1f), onChat)
                             }
-                            ProfileAction("记录管理", "创建、查看、编辑或删除餐食与饮品记录", Icons.Outlined.Restaurant, Modifier.fillMaxWidth(), onRecords)
+                            ProfileAction("Record management", "Create, view, edit, or delete meal and drink records", Icons.Outlined.Restaurant, Modifier.fillMaxWidth(), onRecords)
                         }
                     }
-                    item { Text("最近的决定", Modifier.padding(horizontal = 20.dp, vertical = 8.dp), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
-                    if (profile.decisions.isEmpty()) item { Text("还没有推荐历史。", Modifier.padding(20.dp), color = FoodMindMuted) }
+                    item { Text("Recent decisions", Modifier.padding(horizontal = 20.dp, vertical = 8.dp), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+                    if (profile.decisions.isEmpty()) item { Text("No recommendation history yet.", Modifier.padding(20.dp), color = FoodMindMuted) }
                     items(profile.decisions.take(5), key = { it.sessionId.orEmpty() }) { item ->
                         Card(
                             onClick = { item.sessionId?.let(onRecommendation) },
@@ -190,8 +190,8 @@ private fun ProfileScreen(
                         ) {
                             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
-                                    Text("${item.returnedCandidateCount} 个候选", fontWeight = FontWeight.Bold)
-                                    Text("${item.status ?: "未知"} · ${item.createdAt ?: ""}", color = FoodMindMuted, fontSize = 12.sp)
+                                    Text("${item.returnedCandidateCount} candidates", fontWeight = FontWeight.Bold)
+                                    Text("${item.status ?: "Unknown"} · ${item.createdAt ?: ""}", color = FoodMindMuted, fontSize = 12.sp)
                                 }
                                 Icon(Icons.Outlined.ChevronRight, null)
                             }
@@ -202,11 +202,11 @@ private fun ProfileScreen(
                             OutlinedButton(
                                 onClick = { scope.launch { runCatching { client.logout() }; onSignedOut() } },
                                 modifier = Modifier.fillMaxWidth(),
-                            ) { Icon(Icons.AutoMirrored.Outlined.Logout, null); Spacer(Modifier.width(8.dp)); Text("退出此设备") }
+                            ) { Icon(Icons.AutoMirrored.Outlined.Logout, null); Spacer(Modifier.width(8.dp)); Text("Sign out of this device") }
                             TextButton(
                                 onClick = { scope.launch { runCatching { client.logoutAll() }; onSignedOut() } },
                                 modifier = Modifier.fillMaxWidth(),
-                            ) { Text("退出所有设备") }
+                            ) { Text("Sign out of all devices") }
                         }
                     }
                 }
@@ -244,20 +244,20 @@ private fun ProfileEditorScreen(client: FoodMindApiClient, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
         runCatching { client.currentUser() }.onSuccess { displayName = it.displayName.orEmpty(); timeZone = it.timeZone.orEmpty() }
-            .onFailure { error = "资料加载失败。" }
+            .onFailure { error = "Could not load profile." }
         loading = false
     }
-    FoodMindDetailScaffold("编辑资料", onBack) { padding ->
+    FoodMindDetailScaffold("Edit profile", onBack) { padding ->
         Column(Modifier.padding(padding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (loading) CircularProgressIndicator() else {
-                OutlinedTextField(displayName, { displayName = it }, label = { Text("显示名称") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                OutlinedTextField(timeZone, { timeZone = it }, label = { Text("时区，例如 Asia/Singapore") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(displayName, { displayName = it }, label = { Text("Display name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(timeZone, { timeZone = it }, label = { Text("Time zone, for example Asia/Singapore") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 error?.let { Text(it, color = FoodMindCoral) }
                 Button(
-                    onClick = { scope.launch { saving = true; runCatching { client.updateCurrentUser(UpdateCurrentUserRequest(displayName.trim(), timeZone.trim())) }.onSuccess { onBack() }.onFailure { error = "保存失败，请重试。" }; saving = false } },
+                    onClick = { scope.launch { saving = true; runCatching { client.updateCurrentUser(UpdateCurrentUserRequest(displayName.trim(), timeZone.trim())) }.onSuccess { onBack() }.onFailure { error = "Could not save. Please try again." }; saving = false } },
                     enabled = displayName.trim().isNotEmpty() && !saving,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text(if (saving) "保存中…" else "保存") }
+                ) { Text(if (saving) "Saving…" else "Save") }
             }
         }
     }
@@ -305,31 +305,31 @@ private fun PreferencesScreen(client: FoodMindApiClient, onBack: () -> Unit) {
                 goal = p.foodGoal.orEmpty(); spice = p.spiceTolerance?.toString().orEmpty(); latitude = p.preferredLatitude?.toString().orEmpty(); longitude = p.preferredLongitude?.toString().orEmpty()
                 cleanlinessPriority = p.cleanlinessPriority?.toString().orEmpty(); cleanlinessScore = p.minimumCleanlinessEvidenceScore?.toString().orEmpty(); sweetness = p.drinkSweetnessPreference.orEmpty(); ice = p.drinkIcePreference.orEmpty(); dietary = p.dietaryTagCodes.toSet()
                 allergens = p.allergens.map { it.code }.toSet(); allergenSeverity = p.allergens.associate { it.code to it.severity }; likedCuisines = p.likedCuisineCodes.toSet(); dislikedCuisines = p.dislikedCuisineCodes.toSet(); meals = p.preferredMealTypes.toSet()
-            }.onFailure { error = "偏好加载失败。" }
+            }.onFailure { error = "Could not load preferences." }
     }
-    FoodMindDetailScaffold("偏好设置", onBack) { padding ->
+    FoodMindDetailScaffold("Preferences", onBack) { padding ->
         if (value == null && error == null) CircularProgressIndicator(Modifier.padding(padding).padding(24.dp)) else LazyColumn(
             Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            item { Text("日常情境", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold); Text("这些设置会进入后端推荐约束。", color = FoodMindMuted) }
+            item { Text("Everyday context", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold); Text("These settings are sent as backend recommendation constraints.", color = FoodMindMuted) }
             item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(budgetMin, { budgetMin = it }, label = { Text("最低预算") }, modifier = Modifier.weight(1f))
-                OutlinedTextField(budgetMax, { budgetMax = it }, label = { Text("最高预算") }, modifier = Modifier.weight(1f))
+                OutlinedTextField(budgetMin, { budgetMin = it }, label = { Text("Minimum budget") }, modifier = Modifier.weight(1f))
+                OutlinedTextField(budgetMax, { budgetMax = it }, label = { Text("Maximum budget") }, modifier = Modifier.weight(1f))
             } }
-            item { OutlinedTextField(currency, { currency = it.uppercase().take(3) }, label = { Text("币种") }, modifier = Modifier.fillMaxWidth()) }
-            item { OutlinedTextField(area, { area = it }, label = { Text("常用区域") }, modifier = Modifier.fillMaxWidth()) }
-            item { OutlinedTextField(distance, { distance = it }, label = { Text("最远距离（公里）") }, modifier = Modifier.fillMaxWidth()) }
-            item { OutlinedTextField(spice, { spice = it.filter(Char::isDigit) }, label = { Text("辣度耐受") }, modifier = Modifier.fillMaxWidth()) }
-            item { OutlinedTextField(goal, { goal = it }, label = { Text("饮食目标") }, modifier = Modifier.fillMaxWidth(), minLines = 2) }
-            item { PreferenceChips("常选菜系", reference.cuisines.map { it.code to it.name }, likedCuisines) { likedCuisines = it } }
-            item { PreferenceChips("不喜欢的菜系", reference.cuisines.map { it.code to it.name }, dislikedCuisines) { dislikedCuisines = it } }
-            item { PreferenceChips("餐型", reference.mealTypes.map { it to it.replace('_', ' ') }, meals) { meals = it } }
-            item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(sweetness, { sweetness = it.uppercase() }, label = { Text("饮品甜度") }, modifier = Modifier.weight(1f)); OutlinedTextField(ice, { ice = it.uppercase() }, label = { Text("饮品冰量") }, modifier = Modifier.weight(1f)) } }
-            item { PreferenceChips("饮食需求", reference.dietaryTags.map { it.code to it.name }, dietary) { dietary = it } }
-            item { PreferenceChips("需要避免的过敏原", reference.allergens.map { it.code to it.name }, allergens) { allergens = it } }
+            item { OutlinedTextField(currency, { currency = it.uppercase().take(3) }, label = { Text("Currency") }, modifier = Modifier.fillMaxWidth()) }
+            item { OutlinedTextField(area, { area = it }, label = { Text("Usual area") }, modifier = Modifier.fillMaxWidth()) }
+            item { OutlinedTextField(distance, { distance = it }, label = { Text("Maximum distance (km)") }, modifier = Modifier.fillMaxWidth()) }
+            item { OutlinedTextField(spice, { spice = it.filter(Char::isDigit) }, label = { Text("Spice tolerance") }, modifier = Modifier.fillMaxWidth()) }
+            item { OutlinedTextField(goal, { goal = it }, label = { Text("Food goals") }, modifier = Modifier.fillMaxWidth(), minLines = 2) }
+            item { PreferenceChips("Preferred cuisines", reference.cuisines.map { it.code to it.name }, likedCuisines) { likedCuisines = it } }
+            item { PreferenceChips("Disliked cuisines", reference.cuisines.map { it.code to it.name }, dislikedCuisines) { dislikedCuisines = it } }
+            item { PreferenceChips("Meal type", reference.mealTypes.map { it to it.replace('_', ' ') }, meals) { meals = it } }
+            item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(sweetness, { sweetness = it.uppercase() }, label = { Text("Drink sweetness") }, modifier = Modifier.weight(1f)); OutlinedTextField(ice, { ice = it.uppercase() }, label = { Text("Drink ice level") }, modifier = Modifier.weight(1f)) } }
+            item { PreferenceChips("Dietary requirements", reference.dietaryTags.map { it.code to it.name }, dietary) { dietary = it } }
+            item { PreferenceChips("Allergens to avoid", reference.allergens.map { it.code to it.name }, allergens) { allergens = it } }
             if (allergens.isNotEmpty()) item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("过敏原严重程度", fontWeight = FontWeight.Bold)
+                    Text("Allergen severity", fontWeight = FontWeight.Bold)
                     allergens.forEach { code ->
                         Column { Text(reference.allergens.firstOrNull { it.code == code }?.name ?: code, color = FoodMindMuted); FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                             listOf("MILD", "MODERATE", "SEVERE").forEach { severity -> FilterChip((allergenSeverity[code] ?: "MODERATE") == severity, { allergenSeverity = allergenSeverity + (code to severity) }, label = { Text(severity) }) }
@@ -337,9 +337,9 @@ private fun PreferencesScreen(client: FoodMindApiClient, onBack: () -> Unit) {
                     }
                 }
             }
-            item { Text("清洁证据与位置", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold); Text("这些是决策支持信号，不代表 FoodMind 检查或认证厨房。", color = FoodMindMuted) }
-            item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(cleanlinessPriority, { cleanlinessPriority = it.filter(Char::isDigit) }, label = { Text("证据优先级 0–5") }, modifier = Modifier.weight(1f)); OutlinedTextField(cleanlinessScore, { cleanlinessScore = it }, label = { Text("最低证据分") }, modifier = Modifier.weight(1f)) } }
-            item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(latitude, { latitude = it }, label = { Text("常用纬度") }, modifier = Modifier.weight(1f)); OutlinedTextField(longitude, { longitude = it }, label = { Text("常用经度") }, modifier = Modifier.weight(1f)) } }
+            item { Text("Cleanliness evidence & location", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold); Text("These are decision-support signals and do not mean FoodMind has inspected or certified a kitchen.", color = FoodMindMuted) }
+            item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(cleanlinessPriority, { cleanlinessPriority = it.filter(Char::isDigit) }, label = { Text("Evidence priority 0–5") }, modifier = Modifier.weight(1f)); OutlinedTextField(cleanlinessScore, { cleanlinessScore = it }, label = { Text("Minimum evidence score") }, modifier = Modifier.weight(1f)) } }
+            item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(latitude, { latitude = it }, label = { Text("Usual latitude") }, modifier = Modifier.weight(1f)); OutlinedTextField(longitude, { longitude = it }, label = { Text("Usual longitude") }, modifier = Modifier.weight(1f)) } }
             item { error?.let { Text(it, color = FoodMindCoral) }; Button(
                 onClick = { scope.launch {
                     saving = true
@@ -353,10 +353,10 @@ private fun PreferencesScreen(client: FoodMindApiClient, onBack: () -> Unit) {
                         allergens = allergens.map { AllergenPreferenceRequest(it, allergenSeverity[it] ?: "MODERATE") }, preferredMealTypes = meals.toList(),
                         preferredLatitude = latitude.toDoubleOrNull(), preferredLongitude = longitude.toDoubleOrNull(),
                     )
-                    runCatching { client.replacePreferences(request) }.onSuccess { onBack() }.onFailure { error = "保存失败，请检查输入。" }
+                    runCatching { client.replacePreferences(request) }.onSuccess { onBack() }.onFailure { error = "Could not save. Check your input." }
                     saving = false
                 } }, enabled = !saving, modifier = Modifier.fillMaxWidth(),
-            ) { Text(if (saving) "保存中…" else "保存偏好") } }
+            ) { Text(if (saving) "Saving…" else "Save preferences") } }
         }
     }
 }

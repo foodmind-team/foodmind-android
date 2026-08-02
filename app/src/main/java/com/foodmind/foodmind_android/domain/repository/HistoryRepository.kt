@@ -23,7 +23,7 @@ class HistoryRepositoryImpl(private val apiClient: FoodMindApiClient) : HistoryR
 
 private fun HistoryEntryResponse.toDomain(): HistoryEntry = HistoryEntry(
     id = sourceId ?: occurredAt.orEmpty(),
-    title = title ?: "未命名记录",
+    title = title ?: "Untitled record",
     context = context.orEmpty(),
     occurredAt = occurredAt.orEmpty(),
     type = sourceType ?: "UNKNOWN",

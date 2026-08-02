@@ -64,7 +64,7 @@ data class ChatUiState(
     val isLoading: Boolean = true,
     val isSending: Boolean = false,
     val sessionId: String? = null,
-    val title: String = "FoodMind 助手",
+    val title: String = "FoodMind Assistant",
     val messages: List<ChatMessageResponse> = emptyList(),
     val attachedReferences: List<ChatReferenceResponse> = emptyList(),
     val searchResults: List<ExploreItemResponse> = emptyList(),
@@ -86,12 +86,12 @@ class ChatViewModel : ViewModel() {
         val api = apiClient ?: return
         viewModelScope.launch {
             runCatching {
-                val session = if (sessionId == null) api.createChatSession("FoodMind 助手") else api.chatSession(sessionId)
+                val session = if (sessionId == null) api.createChatSession("FoodMind Assistant") else api.chatSession(sessionId)
                 val id = session.id ?: error("missing session id")
                 val messages = api.chatMessages(id).items
-                Triple(id, session.title ?: "FoodMind 助手", messages)
+                Triple(id, session.title ?: "FoodMind Assistant", messages)
             }.onSuccess { (id, title, messages) -> _state.value = ChatUiState(false, sessionId = id, title = title, messages = messages) }
-                .onFailure { _state.value = ChatUiState(false, errorMessage = "聊天会话加载失败，请稍后重试。") }
+                .onFailure { _state.value = ChatUiState(false, errorMessage = "Could not load this conversation. Please try again.") }
         }
     }
 
@@ -108,7 +108,7 @@ class ChatViewModel : ViewModel() {
                 .onSuccess { message ->
                     val optimisticUser = ChatMessageResponse(id = "local-${System.nanoTime()}", sessionId = id, role = "USER", content = content.trim())
                     _state.update { it.copy(isSending = false, messages = it.messages + optimisticUser + message, attachedReferences = emptyList()) }
-                }.onFailure { _state.update { it.copy(isSending = false, errorMessage = "消息发送失败，请稍后重试。") } }
+                }.onFailure { _state.update { it.copy(isSending = false, errorMessage = "Could not send the message. Please try again.") } }
         }
     }
 
@@ -119,7 +119,7 @@ class ChatViewModel : ViewModel() {
         viewModelScope.launch {
             runCatching { api.search(query.trim()).items }
                 .onSuccess { results -> _state.update { it.copy(isSearching = false, searchResults = results) } }
-                .onFailure { _state.update { it.copy(isSearching = false, errorMessage = "搜索来源失败。") } }
+                .onFailure { _state.update { it.copy(isSearching = false, errorMessage = "Could not search sources.") } }
         }
     }
 
@@ -131,7 +131,7 @@ class ChatViewModel : ViewModel() {
         viewModelScope.launch {
             runCatching { api.shareChatReference(id, type, sourceId) }
                 .onSuccess { reference -> _state.update { it.copy(attachedReferences = (it.attachedReferences + reference).distinctBy(ChatReferenceResponse::id), searchResults = emptyList()) } }
-                .onFailure { _state.update { it.copy(errorMessage = "这个来源暂时无法附加。") } }
+                .onFailure { _state.update { it.copy(errorMessage = "This source cannot be attached right now.") } }
         }
     }
 
@@ -178,8 +178,8 @@ private fun ChatScreen(
             when {
                 state.isLoading -> CircularProgressIndicator(Modifier.padding(24.dp))
                 state.sessionId == null -> Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(state.errorMessage ?: "无法打开聊天", color = FoodMindCoral)
-                    OutlinedButton(onClick = onRetry) { Text("重试") }
+                    Text(state.errorMessage ?: "Could not open chat", color = FoodMindCoral)
+                    OutlinedButton(onClick = onRetry) { Text("Try again") }
                 }
                 else -> {
                     LazyColumn(
@@ -188,7 +188,7 @@ private fun ChatScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         if (state.messages.isEmpty()) item {
-                            Text("我是 FoodMind 助手。可以和你聊饮食决定，也能基于你附加的已授权内容回答。", color = FoodMindMuted, modifier = Modifier.padding(12.dp))
+                            Text("I am the FoodMind Assistant. I can help with food decisions and answer using the authorised sources you attach.", color = FoodMindMuted, modifier = Modifier.padding(12.dp))
                         }
                         items(state.messages, key = { it.id ?: "${it.createdAt}-${it.role}" }) { message ->
                             val user = message.role == "USER"
@@ -199,7 +199,7 @@ private fun ChatScreen(
                                     border = if (user) null else BorderStroke(1.dp, FoodMindLine),
                                 ) { Text(message.content.orEmpty(), Modifier.padding(15.dp), color = if (user) Color.White else FoodMindInk) }
                                 if (message.sources.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 5.dp)) {
-                                    message.sources.take(3).forEach { source -> AssistChip(onClick = {}, label = { Text(source.title ?: source.sourceType ?: "来源") }) }
+                                    message.sources.take(3).forEach { source -> AssistChip(onClick = {}, label = { Text(source.title ?: source.sourceType ?: "Source") }) }
                                 }
                             }
                         }
@@ -208,21 +208,21 @@ private fun ChatScreen(
                     if (showSources) Column(Modifier.fillMaxWidth().background(Color.White).padding(12.dp)) {
                         OutlinedTextField(
                             sourceQuery, { sourceQuery = it; onSearch(it) }, modifier = Modifier.fillMaxWidth(),
-                            label = { Text("搜索可附加的 FoodMind 来源") }, singleLine = true,
-                            trailingIcon = { IconButton(onClick = { showSources = false }) { Icon(Icons.Outlined.Close, "关闭") } },
+                            label = { Text("Search FoodMind sources to attach") }, singleLine = true,
+                            trailingIcon = { IconButton(onClick = { showSources = false }) { Icon(Icons.Outlined.Close, "Close") } },
                         )
                         state.searchResults.take(4).forEach { result -> TextButton(onClick = { onAttach(result); showSources = false }, modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) { Text(result.title ?: "未命名"); Text(result.sourceType.orEmpty(), color = FoodMindMuted) }
+                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) { Text(result.title ?: "Untitled"); Text(result.sourceType.orEmpty(), color = FoodMindMuted) }
                             Icon(Icons.Outlined.Add, null)
                         } }
                     }
                     if (state.attachedReferences.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        state.attachedReferences.forEach { reference -> AssistChip(onClick = { onRemoveReference(reference.id) }, label = { Text(reference.title ?: reference.sourceType ?: "来源") }, trailingIcon = { Icon(Icons.Outlined.Close, "移除") }) }
+                        state.attachedReferences.forEach { reference -> AssistChip(onClick = { onRemoveReference(reference.id) }, label = { Text(reference.title ?: reference.sourceType ?: "Source") }, trailingIcon = { Icon(Icons.Outlined.Close, "Remove") }) }
                     }
                     Row(Modifier.fillMaxWidth().background(Color.White).padding(10.dp), verticalAlignment = Alignment.Bottom) {
-                        IconButton(onClick = { showSources = !showSources }) { Icon(Icons.Outlined.AttachFile, "附加来源") }
-                        OutlinedTextField(draft, { draft = it }, placeholder = { Text("发消息…") }, modifier = Modifier.weight(1f), maxLines = 4)
-                        IconButton(onClick = { onSend(draft); draft = "" }, enabled = draft.isNotBlank() && !state.isSending) { Icon(Icons.AutoMirrored.Outlined.Send, "发送") }
+                        IconButton(onClick = { showSources = !showSources }) { Icon(Icons.Outlined.AttachFile, "Attach source") }
+                        OutlinedTextField(draft, { draft = it }, placeholder = { Text("Send a message…") }, modifier = Modifier.weight(1f), maxLines = 4)
+                        IconButton(onClick = { onSend(draft); draft = "" }, enabled = draft.isNotBlank() && !state.isSending) { Icon(Icons.AutoMirrored.Outlined.Send, "Send") }
                     }
                 }
             }

@@ -37,8 +37,17 @@ Use build variants or generated configuration for:
 - `staging`
 - `production-demo`
 
-Debug builds use the emulator host URL above. Release builds read the public
-API base URL (including the trailing `/api/v1/`) from either:
+Debug builds default to the emulator host URL above. Override it for a
+one-off local run (including the trailing `/api/v1/`) with either:
+
+```text
+FOODMIND_API_BASE_URL=http://10.0.2.2:8080/api/v1/
+```
+
+or the Gradle property `foodmind.debugApiBaseUrl`.
+
+Release builds read the public API base URL (including the trailing `/api/v1/`)
+from either:
 
 ```text
 FOODMIND_API_BASE_URL=https://approved-host.example/api/v1/
@@ -138,7 +147,14 @@ Release builds must not enable verbose HTTP-body logging.
 ### Emulator cannot reach backend
 
 - Use `10.0.2.2`, not emulator `localhost`.
+- Confirm `BuildConfig.FOODMIND_API_BASE_URL` resolves to
+  `http://10.0.2.2:8080/api/v1/` for the installed debug APK.
+- The debug manifest permits cleartext only for `10.0.2.2`, `127.0.0.1`, and
+  `localhost`; release builds do not permit this local HTTP configuration.
 - Confirm the backend is listening on a reachable interface.
+- If Spring Boot is bound to `127.0.0.1`, start it with
+  `server.address=0.0.0.0`. No change is needed when it already listens on
+  `*:8080`.
 - Confirm cleartext HTTP is used only for an explicitly configured local build.
 - Check host firewall settings.
 

@@ -82,35 +82,35 @@ private fun GroupWorkspaceScreen(client: FoodMindApiClient, groupId: String, onB
     LaunchedEffect(groupId, refresh) {
         loading = true
         runCatching { coroutineScope { val g = async { client.group(groupId) }; val m = async { client.groupMembers(groupId) }; val f = async { client.groupFeed(groupId) }; Triple(g.await(), m.await(), f.await().items) } }
-            .onSuccess { (g, m, f) -> group = g; members = m; feed = f; name = g.name.orEmpty(); description = g.description.orEmpty(); error = null }.onFailure { error = "群组工作区加载失败。" }
+            .onSuccess { (g, m, f) -> group = g; members = m; feed = f; name = g.name.orEmpty(); description = g.description.orEmpty(); error = null }.onFailure { error = "Could not load the group workspace." }
         loading = false
     }
-    FoodMindDetailScaffold(group?.name ?: "群组", onBack, actions = {
-        IconButton(onClick = { editMode = !editMode }) { Icon(Icons.Outlined.Edit, "编辑群组") }
-        IconButton(onClick = { scope.launch { runCatching { client.createGroupInvitation(groupId, CreateInvitationRequest(expiresInHours = 24, maxUses = 10)) }.onSuccess { inviteToken = it.token }.onFailure { error = "邀请创建失败。" } } }) { Icon(Icons.Outlined.PersonAdd, "创建邀请") }
+    FoodMindDetailScaffold(group?.name ?: "Groups", onBack, actions = {
+        IconButton(onClick = { editMode = !editMode }) { Icon(Icons.Outlined.Edit, "EditGroups") }
+        IconButton(onClick = { scope.launch { runCatching { client.createGroupInvitation(groupId, CreateInvitationRequest(expiresInHours = 24, maxUses = 10)) }.onSuccess { inviteToken = it.token }.onFailure { error = "Could not create an invitation." } } }) { Icon(Icons.Outlined.PersonAdd, "Create invitation") }
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             if (loading) CircularProgressIndicator(Modifier.padding(24.dp))
             error?.let { Text(it, Modifier.padding(16.dp), color = FoodMindCoral) }
             group?.let { current ->
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                    Text(current.description ?: "共享饮食决定", color = FoodMindMuted)
-                    Text("${members.size} 位成员 · ${current.status}", color = FoodMindGreen, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
+                    Text(current.description ?: "Shared food decisions", color = FoodMindMuted)
+                    Text("${members.size} members · ${current.status}", color = FoodMindGreen, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
                     if (editMode) {
-                        OutlinedTextField(name, { name = it }, label = { Text("名称") }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)); OutlinedTextField(description, { description = it }, label = { Text("描述") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(name, { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)); OutlinedTextField(description, { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth())
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { scope.launch { runCatching { client.updateGroup(groupId, UpdateGroupRequest(name.trim(), description.trim())) }.onSuccess { editMode = false; refresh++ }.onFailure { error = "保存失败。" } } }) { Text("保存") }
-                            OutlinedButton(onClick = { scope.launch { runCatching { client.updateGroup(groupId, UpdateGroupRequest(status = "ARCHIVED")) }.onSuccess { onBack() } } }) { Icon(Icons.Outlined.Archive, null); Text("归档") }
+                            Button(onClick = { scope.launch { runCatching { client.updateGroup(groupId, UpdateGroupRequest(name.trim(), description.trim())) }.onSuccess { editMode = false; refresh++ }.onFailure { error = "Could not save." } } }) { Text("Save") }
+                            OutlinedButton(onClick = { scope.launch { runCatching { client.updateGroup(groupId, UpdateGroupRequest(status = "ARCHIVED")) }.onSuccess { onBack() } } }) { Icon(Icons.Outlined.Archive, null); Text("Archive") }
                         }
                     }
-                    inviteToken?.let { token -> Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFEEF7F0)), modifier = Modifier.padding(top = 10.dp)) { Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("邀请令牌", fontWeight = FontWeight.Bold); Text(token) }; IconButton(onClick = { clipboard.setText(AnnotatedString(token)) }) { Icon(Icons.Outlined.ContentCopy, "复制") } } } }
+                    inviteToken?.let { token -> Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFEEF7F0)), modifier = Modifier.padding(top = 10.dp)) { Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Invitation token", fontWeight = FontWeight.Bold); Text(token) }; IconButton(onClick = { clipboard.setText(AnnotatedString(token)) }) { Icon(Icons.Outlined.ContentCopy, "Copy") } } } }
                 }
-                PrimaryTabRow(tab) { Tab(tab == 0, { tab = 0 }, text = { Text("动态") }); Tab(tab == 1, { tab = 1 }, text = { Text("成员") }) }
+                PrimaryTabRow(tab) { Tab(tab == 0, { tab = 0 }, text = { Text("Activity") }); Tab(tab == 1, { tab = 1 }, text = { Text("Members") }) }
                 if (tab == 0) LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (feed.isEmpty()) item { FoodMindSurfaceCard { Text("还没有共享动态。") } }
-                    items(feed, key = { it.sourceId.orEmpty() }) { item -> Card(onClick = { item.foodRecordId?.let { onOpenRecord("FOOD", it) } }, colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) { Column(Modifier.fillMaxWidth().padding(15.dp)) { Text(item.actorDisplayName ?: "群组成员", fontWeight = FontWeight.Bold); Text(item.mealNameSnapshot ?: item.message ?: "共享了一项饮食决定", modifier = Modifier.padding(top = 5.dp)); Text(item.occurredAt.orEmpty(), color = FoodMindMuted, fontSize = 11.sp) } } }
+                    if (feed.isEmpty()) item { FoodMindSurfaceCard { Text("No shared activity yet.") } }
+                    items(feed, key = { it.sourceId.orEmpty() }) { item -> Card(onClick = { item.foodRecordId?.let { onOpenRecord("FOOD", it) } }, colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) { Column(Modifier.fillMaxWidth().padding(15.dp)) { Text(item.actorDisplayName ?: "Group member", fontWeight = FontWeight.Bold); Text(item.mealNameSnapshot ?: item.message ?: "shared a food decision", modifier = Modifier.padding(top = 5.dp)); Text(item.occurredAt.orEmpty(), color = FoodMindMuted, fontSize = 11.sp) } } }
                 } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(members, key = { it.userId.orEmpty() }) { member -> Card(colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) { Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) { FoodMindAvatar(member.displayName ?: "人"); Column(Modifier.weight(1f).padding(horizontal = 10.dp)) { Text(member.displayName ?: "成员", fontWeight = FontWeight.Bold); Text(member.role ?: "MEMBER", color = FoodMindMuted) }; IconButton(onClick = { member.userId?.let { userId -> scope.launch { runCatching { client.removeGroupMember(groupId, userId) }.onSuccess { members = members.filterNot { it.userId == userId } }.onFailure { error = "移除成员失败。" } } } }) { Icon(Icons.Outlined.DeleteOutline, "移除") } } } }
+                    items(members, key = { it.userId.orEmpty() }) { member -> Card(colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) { Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) { FoodMindAvatar(member.displayName ?: "person"); Column(Modifier.weight(1f).padding(horizontal = 10.dp)) { Text(member.displayName ?: "Members", fontWeight = FontWeight.Bold); Text(member.role ?: "MEMBER", color = FoodMindMuted) }; IconButton(onClick = { member.userId?.let { userId -> scope.launch { runCatching { client.removeGroupMember(groupId, userId) }.onSuccess { members = members.filterNot { it.userId == userId } }.onFailure { error = "Could not remove this member." } } } }) { Icon(Icons.Outlined.DeleteOutline, "Remove") } } } }
                 }
             }
         }

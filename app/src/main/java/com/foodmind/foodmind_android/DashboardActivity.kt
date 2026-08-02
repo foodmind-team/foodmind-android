@@ -53,25 +53,25 @@ private fun DashboardScreen(client: FoodMindApiClient, onBack: () -> Unit) {
     LaunchedEffect(tab, from, to, groupBy, weekStart, refresh) {
         loading = true
         runCatching { if (tab == 0) client.dashboard(from, to, groupBy).let { Triple(it.metrics, it.spendingTotals, it.empty) } else client.weeklyRecap(weekStart).let { Triple(it.metrics, it.spendingTotals, it.empty) } }
-            .onSuccess { (m, s, e) -> metrics = m; spending = s; empty = e; error = null }.onFailure { error = "统计加载失败，请检查日期。" }
+            .onSuccess { (m, s, e) -> metrics = m; spending = s; empty = e; error = null }.onFailure { error = "Could not load analytics. Check the dates." }
         loading = false
     }
-    FoodMindDetailScaffold("饮食洞察", onBack) { padding ->
+    FoodMindDetailScaffold("Food insights", onBack) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            PrimaryTabRow(tab) { Tab(tab == 0, { tab = 0 }, text = { Text("看板") }); Tab(tab == 1, { tab = 1 }, text = { Text("每周总结") }) }
+            PrimaryTabRow(tab) { Tab(tab == 0, { tab = 0 }, text = { Text("Dashboard") }); Tab(tab == 1, { tab = 1 }, text = { Text("Weekly recap") }) }
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                item { Text(if (tab == 0) "用后端指标看趋势" else "你的每周总结", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold); Text("指标完全来自现有后端，不在客户端重算。", color = FoodMindMuted) }
+                item { Text(if (tab == 0) "See trends using backend metrics" else "Your weekly recap", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold); Text("Metrics come directly from the backend and are not recalculated on the device.", color = FoodMindMuted) }
                 if (tab == 0) {
-                    item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(from, { from = it }, label = { Text("开始日期") }, modifier = Modifier.weight(1f)); OutlinedTextField(to, { to = it }, label = { Text("结束日期") }, modifier = Modifier.weight(1f)) } }
+                    item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(from, { from = it }, label = { Text("Start date") }, modifier = Modifier.weight(1f)); OutlinedTextField(to, { to = it }, label = { Text("End date") }, modifier = Modifier.weight(1f)) } }
                     item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("DAY", "WEEK", "MONTH").forEach { FilterChip(groupBy == it, { groupBy = it }, label = { Text(it) }) } } }
-                } else item { OutlinedTextField(weekStart, { weekStart = it }, label = { Text("周一日期") }, modifier = Modifier.fillMaxWidth()) }
+                } else item { OutlinedTextField(weekStart, { weekStart = it }, label = { Text("Monday date") }, modifier = Modifier.fillMaxWidth()) }
                 if (loading) item { CircularProgressIndicator() }
-                error?.let { item { Text(it, color = FoodMindCoral); TextButton(onClick = { refresh++ }) { Text("重试") } } }
-                if (!loading && empty) item { FoodMindSurfaceCard { Text("这个时间段还没有足够数据。") } }
+                error?.let { item { Text(it, color = FoodMindCoral); TextButton(onClick = { refresh++ }) { Text("Try again") } } }
+                if (!loading && empty) item { FoodMindSurfaceCard { Text("There is not enough data for this period yet.") } }
                 items(metrics, key = { "${it.code}-${it.period}-${it.dimension}" }) { MetricCard(it) }
-                if (spending.isNotEmpty()) item { Text("花费", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 6.dp)) }
+                if (spending.isNotEmpty()) item { Text("Spending", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 6.dp)) }
                 items(spending, key = { "spend-${it.code}-${it.period}-${it.dimension}" }) { MetricCard(it) }
-                item { Text("空值会保持为空；百分比与分母由后端定义。", color = FoodMindMuted, fontSize = 11.sp) }
+                item { Text("Empty values stay empty; the backend defines percentages and denominators.", color = FoodMindMuted, fontSize = 11.sp) }
             }
         }
     }
@@ -81,7 +81,7 @@ private fun DashboardScreen(client: FoodMindApiClient, onBack: () -> Unit) {
 private fun MetricCard(metric: DashboardMetricResponse) {
     Card(colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text(metric.label ?: metric.code ?: "指标", fontWeight = FontWeight.Bold); Text(if (metric.empty) "暂无数据" else listOfNotNull(metric.value?.toString(), metric.currency, metric.unit).joinToString(" "), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FoodMindGreen, modifier = Modifier.padding(top = 7.dp))
+            Text(metric.label ?: metric.code ?: "Metrics", fontWeight = FontWeight.Bold); Text(if (metric.empty) "No data yet" else listOfNotNull(metric.value?.toString(), metric.currency, metric.unit).joinToString(" "), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FoodMindGreen, modifier = Modifier.padding(top = 7.dp))
             metric.dimensionLabel?.let { Text(it, color = FoodMindMuted) }; metric.denominator?.takeIf { it > 0 }?.let { denominator -> LinearProgressIndicator(progress = { ((metric.value ?: 0.0) / denominator).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().padding(top = 9.dp)) }
             Text(metric.period.orEmpty(), color = FoodMindMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
         }

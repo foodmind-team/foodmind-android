@@ -144,7 +144,7 @@ private fun HomeScreen(
     )
     FoodMindRootScaffold(
         FoodMindRoot.HOME, "FoodMind", onNavigate,
-        topActions = { IconButton(onClick = onChat) { Icon(Icons.Outlined.ChatBubbleOutline, "FoodMind 助手") } },
+        topActions = { IconButton(onClick = onChat) { Icon(Icons.Outlined.ChatBubbleOutline, "FoodMind Assistant") } },
         onRecord = onRecord,
     ) { padding ->
         LazyColumn(
@@ -154,28 +154,28 @@ private fun HomeScreen(
         ) {
             item {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(state.mode == HomeMode.RECOMMEND, { onModeChange(HomeMode.RECOMMEND) }, label = { Text("外食与外卖") })
-                    FilterChip(state.mode == HomeMode.COOKING, { onModeChange(HomeMode.COOKING) }, label = { Text("烹饪") })
+                    FilterChip(state.mode == HomeMode.RECOMMEND, { onModeChange(HomeMode.RECOMMEND) }, label = { Text("Dining out & delivery") })
+                    FilterChip(state.mode == HomeMode.COOKING, { onModeChange(HomeMode.COOKING) }, label = { Text("Cooking") })
                 }
-                Text(if (state.mode == HomeMode.RECOMMEND) "晚餐，放心决定。" else "用手头的食材做饭。", fontSize = 31.sp, fontWeight = FontWeight.ExtraBold, color = FoodMindInk, modifier = Modifier.padding(top = 12.dp))
-                Text(if (state.mode == HomeMode.RECOMMEND) "一个清晰选择，加上可以检查的理由。" else "从本地菜谱或手动食材，生成后端支持的可执行计划。", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp))
+                Text(if (state.mode == HomeMode.RECOMMEND) "Decide dinner with confidence." else "Cook with ingredients you have.", fontSize = 31.sp, fontWeight = FontWeight.ExtraBold, color = FoodMindInk, modifier = Modifier.padding(top = 12.dp))
+                Text(if (state.mode == HomeMode.RECOMMEND) "One clear choice, with reasons you can inspect." else "Create a backend-supported, actionable plan from local recipes or manual ingredients.", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp))
             }
             if (state.mode == HomeMode.RECOMMEND) {
                 item {
                     Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.Transparent), border = BorderStroke(0.dp, Color.Transparent)) {
                         Column(Modifier.background(Brush.linearGradient(listOf(FoodMindGreenDark, FoodMindGreen))).padding(20.dp)) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) { Text("今晚的推荐情境", color = Color(0xFFCFE5D8), fontSize = 12.sp, fontWeight = FontWeight.Bold); Text(groups.firstOrNull { it.id == groupId }?.name ?: "为我推荐", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold) }
-                                IconButton(onClick = { showContext = !showContext }) { Icon(Icons.Outlined.Tune, "调整推荐情境", tint = Color.White) }
+                                Column(Modifier.weight(1f)) { Text("Tonight’s recommendation context", color = Color(0xFFCFE5D8), fontSize = 12.sp, fontWeight = FontWeight.Bold); Text(groups.firstOrNull { it.id == groupId }?.name ?: "Recommend for me", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold) }
+                                IconButton(onClick = { showContext = !showContext }) { Icon(Icons.Outlined.Tune, "Adjust recommendation context", tint = Color.White) }
                             }
                             Text(listOf(mealType, budget.takeIf(String::isNotBlank)?.let { "$it $currency" }, area.takeIf(String::isNotBlank)).filterNotNull().joinToString(" · "), color = Color.White, modifier = Modifier.padding(top = 8.dp))
                             if (showContext) Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) { FilterChip(groupId.isBlank(), { groupId = "" }, label = { Text("仅自己") }); groups.forEach { group -> FilterChip(groupId == group.id, { groupId = group.id.orEmpty() }, label = { Text(group.name ?: "群组") }) } }
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(mealType, { mealType = it.uppercase() }, label = { Text("餐型") }, modifier = Modifier.weight(1f)); OutlinedTextField(budget, { budget = it }, label = { Text("预算") }, modifier = Modifier.weight(1f)) }
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(currency, { currency = it.uppercase().take(3) }, label = { Text("币种") }, modifier = Modifier.weight(1f)); OutlinedTextField(area, { area = it }, label = { Text("区域") }, modifier = Modifier.weight(1f)) }
-                                OutlinedTextField(mood, { mood = it }, label = { Text("今晚的心情") }, modifier = Modifier.fillMaxWidth())
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) { FilterChip(groupId.isBlank(), { groupId = "" }, label = { Text("Only me") }); groups.forEach { group -> FilterChip(groupId == group.id, { groupId = group.id.orEmpty() }, label = { Text(group.name ?: "Groups") }) } }
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(mealType, { mealType = it.uppercase() }, label = { Text("Meal type") }, modifier = Modifier.weight(1f)); OutlinedTextField(budget, { budget = it }, label = { Text("Budget") }, modifier = Modifier.weight(1f)) }
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(currency, { currency = it.uppercase().take(3) }, label = { Text("Currency") }, modifier = Modifier.weight(1f)); OutlinedTextField(area, { area = it }, label = { Text("Area") }, modifier = Modifier.weight(1f)) }
+                                OutlinedTextField(mood, { mood = it }, label = { Text("Tonight’s mood") }, modifier = Modifier.fillMaxWidth())
                             }
-                            Button(onClick = { if (currency.length == 3) onGenerate(request) else contextError = "币种需要 3 位代码。" }, enabled = !state.isGenerating, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) { if (state.isGenerating) CircularProgressIndicator() else Text("生成推荐") }
+                            Button(onClick = { if (currency.length == 3) onGenerate(request) else contextError = "Currency must use a 3-letter code." }, enabled = !state.isGenerating, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) { if (state.isGenerating) CircularProgressIndicator() else Text("Generate recommendations") }
                         }
                     }
                 }
@@ -186,20 +186,20 @@ private fun HomeScreen(
                         shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine),
                     ) {
                         Column(Modifier.padding(18.dp)) {
-                            Text("FoodMind 推荐", color = FoodMindGreen, fontWeight = FontWeight.Bold)
+                            Text("FoodMind Recommendations", color = FoodMindGreen, fontWeight = FontWeight.Bold)
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text(state.resultTitle, Modifier.weight(1f), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold); Icon(Icons.Outlined.ChevronRight, null) }
                             Text(state.resultMeta, color = FoodMindMuted, modifier = Modifier.padding(top = 5.dp)); Text(state.resultReason, modifier = Modifier.padding(top = 10.dp))
-                            TextButton(onClick = onTryAnother) { Text("整组换一批") }
+                            TextButton(onClick = onTryAnother) { Text("Try another set for the group") }
                         }
                     }
                 }
-                state.errorMessage?.let { item { FoodMindSurfaceCard { Column { Text(it, color = FoodMindCoral); TextButton(onClick = { onGenerate(request) }) { Text("重试") } } } } }
+                state.errorMessage?.let { item { FoodMindSurfaceCard { Column { Text(it, color = FoodMindCoral); TextButton(onClick = { onGenerate(request) }) { Text("Try again") } } } } }
             } else item {
-                FoodMindSurfaceCard { Column { Text("选择烹饪起点", fontSize = 20.sp, fontWeight = FontWeight.Bold); Text("本地菜谱不会伪装成服务端数据。生成时只发送食材和约束。", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp)); Button(onClick = onCook, modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) { Text("从本地菜谱开始") }; OutlinedButton(onClick = onManualCook, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("手动输入食材") } } }
+                FoodMindSurfaceCard { Column { Text("Choose a cooking starting point", fontSize = 20.sp, fontWeight = FontWeight.Bold); Text("Local recipes are never presented as server data. Generation sends only ingredients and constraints.", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp)); Button(onClick = onCook, modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) { Text("Start from local recipes") }; OutlinedButton(onClick = onManualCook, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Enter ingredients manually") } } }
             }
-            item { Text("快捷入口", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
-            item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { HomeQuick("历史记录", "最近吃过与喝过", Icons.Outlined.History, Modifier.weight(1f), onHistory); HomeQuick("饮食洞察", "看板与每周总结", Icons.Outlined.BarChart, Modifier.weight(1f), onDashboard) } }
-            item { HomeQuick("FoodMind 助手", "带着已授权来源继续讨论", Icons.Outlined.ChatBubbleOutline, Modifier.fillMaxWidth(), onChat) }
+            item { Text("Shortcuts", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+            item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { HomeQuick("History", "Recently eaten and drunk", Icons.Outlined.History, Modifier.weight(1f), onHistory); HomeQuick("Food insights", "Dashboard & weekly recap", Icons.Outlined.BarChart, Modifier.weight(1f), onDashboard) } }
+            item { HomeQuick("FoodMind Assistant", "Continue with authorised sources", Icons.Outlined.ChatBubbleOutline, Modifier.fillMaxWidth(), onChat) }
         }
     }
 }

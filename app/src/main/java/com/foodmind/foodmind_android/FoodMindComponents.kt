@@ -46,11 +46,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 enum class FoodMindRoot(val label: String, val icon: ImageVector) {
-    HOME("首页", Icons.Outlined.Home),
-    GROUPS("群组", Icons.Outlined.Group),
-    EXPLORE("发现", Icons.Outlined.Explore),
-    SAVED("收藏", Icons.Outlined.BookmarkBorder),
-    ME("我的", Icons.Outlined.Person),
+    HOME("Home", Icons.Outlined.Home),
+    GROUPS("Groups", Icons.Outlined.Group),
+    EXPLORE("Discover", Icons.Outlined.Explore),
+    SAVED("Saved", Icons.Outlined.BookmarkBorder),
+    ME("Me", Icons.Outlined.Person),
 }
 
 fun Context.openFoodMindRoot(destination: FoodMindRoot) {
@@ -94,7 +94,7 @@ fun FoodMindRootScaffold(
                     shape = RoundedCornerShape(18.dp),
                     containerColor = FoodMindCoral,
                     contentColor = Color.White,
-                ) { Icon(Icons.Outlined.Add, contentDescription = "新增记录") }
+                ) { Icon(Icons.Outlined.Add, contentDescription = "Add record") }
             }
         },
         bottomBar = {
@@ -133,7 +133,7 @@ fun FoodMindDetailScaffold(
         topBar = {
             TopAppBar(
                 title = { Text(title, fontWeight = FontWeight.Bold, color = FoodMindInk) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") } },
                 actions = actions,
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
             )

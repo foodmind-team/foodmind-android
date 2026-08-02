@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -72,42 +73,42 @@ private fun LoginScreen(
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text(if (state.registering) "创建 FoodMind 账号" else "登录 FoodMind", color = FoodMindGreenDark)
-        Text("登录后可生成推荐、烹饪计划并同步你的记录。", color = FoodMindMuted)
+        Text(stringResource(if (state.registering) R.string.login_create_account else R.string.login_title), color = FoodMindGreenDark)
+        Text(stringResource(R.string.login_support), color = FoodMindMuted)
         if (state.registering) OutlinedTextField(
             value = state.displayName,
             onValueChange = onDisplayNameChange,
-            label = { Text("显示名称") },
+            label = { Text(stringResource(R.string.label_display_name)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
         OutlinedTextField(
             value = state.email,
             onValueChange = onEmailChange,
-            label = { Text("邮箱") },
+            label = { Text(stringResource(R.string.label_email)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
         OutlinedTextField(
             value = state.password,
             onValueChange = onPasswordChange,
-            label = { Text("密码") },
+            label = { Text(stringResource(R.string.label_password)) },
             visualTransformation = PasswordVisualTransformation(),
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        state.errorMessage?.let { Text(it, color = FoodMindCoral) }
+        state.errorMessageRes?.let { Text(stringResource(it), color = FoodMindCoral) }
         Button(
             onClick = onLogin,
             enabled = !state.isLoading,
             modifier = Modifier.fillMaxWidth(),
         ) {
             if (state.isLoading) CircularProgressIndicator()
-            else Text(if (state.registering) "注册并登录" else "登录")
+            else Text(stringResource(if (state.registering) R.string.login_register_and_sign_in else R.string.login_sign_in))
         }
         OutlinedButton(onClick = { onModeChange(!state.registering) }, modifier = Modifier.fillMaxWidth()) {
-            Text(if (state.registering) "已有账号？去登录" else "没有账号？去注册")
+            Text(stringResource(if (state.registering) R.string.login_existing_account else R.string.login_new_account))
         }
-        OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("返回") }
+        OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.action_back)) }
     }
 }

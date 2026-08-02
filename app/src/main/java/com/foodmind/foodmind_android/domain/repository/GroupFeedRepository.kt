@@ -27,8 +27,8 @@ class GroupFeedRepositoryImpl(private val apiClient: FoodMindApiClient) : GroupF
             items = response.items.map { item ->
                 GroupFeedItem(
                     id = item.sourceId ?: item.occurredAt.orEmpty(),
-                    actor = item.actorDisplayName ?: "群组成员",
-                    title = item.mealNameSnapshot ?: "群组动态",
+                    actor = item.actorDisplayName ?: "Group member",
+                    title = item.mealNameSnapshot ?: "Group activity",
                     message = item.message.orEmpty(),
                     sourceType = item.sourceType ?: "UNKNOWN",
                     occurredAt = item.occurredAt.orEmpty(),

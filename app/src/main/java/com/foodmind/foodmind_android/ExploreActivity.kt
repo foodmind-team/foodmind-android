@@ -99,37 +99,37 @@ private fun ExploreScreen(
             if (activeQuery.isBlank()) client.explore(topics = null).let { Triple(it.items, it.nextCursor, it.hasNext) }
             else client.search(activeQuery, type).let { Triple(it.items, it.nextCursor, it.hasNext) }
         }.onSuccess { (results, cursor, more) -> items = results; nextCursor = cursor; hasNext = more; error = null }
-            .onFailure { error = "发现内容加载失败，请稍后重试。" }
+            .onFailure { error = "Could not load Discover content. Please try again." }
         loading = false
     }
 
     FoodMindRootScaffold(
         selected = FoodMindRoot.EXPLORE,
-        title = "发现",
+        title = "Discover",
         onNavigate = onNavigate,
-        topActions = { IconButton(onClick = onChat) { Icon(Icons.Outlined.ChatBubbleOutline, "FoodMind 助手") } },
+        topActions = { IconButton(onClick = onChat) { Icon(Icons.Outlined.ChatBubbleOutline, "FoodMind Assistant") } },
         onRecord = onRecord,
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     query, { query = it }, modifier = Modifier.weight(1f), singleLine = true,
-                    placeholder = { Text("搜索餐食、地点、产品…") },
+                    placeholder = { Text("Search meals, places, and products…") },
                     leadingIcon = { Icon(Icons.Outlined.Search, null) },
                     keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { activeQuery = query.trim() }),
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
                 )
-                IconButton(onClick = { activeQuery = query.trim() }) { Icon(Icons.Outlined.Search, "搜索") }
+                IconButton(onClick = { activeQuery = query.trim() }) { Icon(Icons.Outlined.Search, "Search") }
             }
             Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(null to "推荐", "FOOD_RECORD" to "餐食", "PLACE" to "地点", "FOOD_PRODUCT" to "产品").forEach { (code, label) ->
+                listOf(null to "Recommendations", "FOOD_RECORD" to "Meal", "PLACE" to "Place", "FOOD_PRODUCT" to "Product").forEach { (code, label) ->
                     FilterChip(selected = type == code, onClick = { type = code; if (activeQuery.isBlank() && code != null) activeQuery = query.ifBlank { label } }, label = { Text(label) })
                 }
             }
             when {
                 loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-                error != null -> Column(Modifier.padding(24.dp)) { Text(error!!, color = FoodMindCoral); TextButton(onClick = { refresh++ }) { Text("重试") } }
-                items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("没有找到相关内容。", color = FoodMindMuted) }
+                error != null -> Column(Modifier.padding(24.dp)) { Text(error!!, color = FoodMindCoral); TextButton(onClick = { refresh++ }) { Text("Try again") } }
+                items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No matching content found.", color = FoodMindMuted) }
                 else -> LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier.fillMaxSize(),
@@ -146,7 +146,7 @@ private fun ExploreScreen(
                                 val sourceId = item.sourceId ?: return@ExploreCard
                                 val saveType = when (item.sourceType) { "CURATED_PLACE" -> "PLACE"; "CURATED_PRODUCT" -> "FOOD_PRODUCT"; "GROUP_RECORD" -> "FOOD_RECORD"; else -> item.sourceType ?: return@ExploreCard }
                                 savedIds = savedIds + sourceId
-                                scope.launch { runCatching { client.saveWantToTry(saveType, sourceId) }.onFailure { savedIds = savedIds - sourceId; error = "收藏失败。" } }
+                                scope.launch { runCatching { client.saveWantToTry(saveType, sourceId) }.onFailure { savedIds = savedIds - sourceId; error = "Could not save." } }
                             },
                         )
                     }
@@ -158,7 +158,7 @@ private fun ExploreScreen(
                                 else client.search(activeQuery, type, nextCursor).let { Triple(it.items, it.nextCursor, it.hasNext) }
                             }.onSuccess { page -> items = items + page.first; nextCursor = page.second; hasNext = page.third }
                             loading = false
-                        } }, modifier = Modifier.fillMaxWidth()) { Text("加载更多") }
+                        } }, modifier = Modifier.fillMaxWidth()) { Text("Load more") }
                     }
                 }
             }
@@ -186,11 +186,11 @@ private fun ExploreCard(item: ExploreItemResponse, saved: Boolean, onOpen: () ->
                 contentAlignment = Alignment.Center,
             ) { Text(item.sourceType.orEmpty().replace('_', ' '), color = FoodMindGreenDark, fontWeight = FontWeight.Bold) }
             Column(Modifier.padding(11.dp)) {
-                Text(item.title ?: "未命名内容", maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold, color = FoodMindInk)
+                Text(item.title ?: "Untitled content", maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold, color = FoodMindInk)
                 item.snippet?.takeIf(String::isNotBlank)?.let { Text(it, color = FoodMindMuted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp)) }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(item.subtitle ?: item.sourceType.orEmpty(), Modifier.weight(1f), color = FoodMindMuted, fontSize = 11.sp, maxLines = 1)
-                    IconButton(onClick = onSave) { Icon(Icons.Outlined.BookmarkAdd, if (saved) "已收藏" else "想尝试", tint = if (saved) FoodMindCoral else FoodMindMuted) }
+                    IconButton(onClick = onSave) { Icon(Icons.Outlined.BookmarkAdd, if (saved) "Saved" else "Want to Try", tint = if (saved) FoodMindCoral else FoodMindMuted) }
                 }
             }
         }

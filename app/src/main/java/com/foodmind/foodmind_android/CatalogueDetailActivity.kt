@@ -73,12 +73,12 @@ private fun CatalogueDetailScreen(client: FoodMindApiClient, sourceType: String,
     val scope = rememberCoroutineScope()
     LaunchedEffect(sourceType, sourceId, refresh) {
         runCatching { loadCatalogueDetail(client, sourceType, sourceId) }
-            .onSuccess { data = it; error = null }.onFailure { error = "详情加载失败，或你已不再有权查看。" }
+            .onSuccess { data = it; error = null }.onFailure { error = "Could not load details, or you no longer have access." }
     }
-    FoodMindDetailScaffold(data?.title ?: "详情", onBack) { padding ->
+    FoodMindDetailScaffold(data?.title ?: "Details", onBack) { padding ->
         when {
             data == null && error == null -> CircularProgressIndicator(Modifier.padding(padding).padding(24.dp))
-            data == null -> Column(Modifier.padding(padding).padding(24.dp)) { Text(error.orEmpty(), color = FoodMindCoral); TextButton(onClick = { refresh++ }) { Text("重试") } }
+            data == null -> Column(Modifier.padding(padding).padding(24.dp)) { Text(error.orEmpty(), color = FoodMindCoral); TextButton(onClick = { refresh++ }) { Text("Try again") } }
             else -> LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 val detail = data!!
                 item {
@@ -87,18 +87,18 @@ private fun CatalogueDetailScreen(client: FoodMindApiClient, sourceType: String,
                     detail.description?.let { Text(it, color = FoodMindMuted, modifier = Modifier.padding(top = 8.dp)) }
                     FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { detail.tags.forEach { AssistChip(onClick = {}, label = { Text(it) }) } }
                 }
-                item { FoodMindSurfaceCard { Column { Text("FoodMind 可引用的信息", fontWeight = FontWeight.Bold, fontSize = 18.sp); detail.facts.forEach { (label, value) -> Row(Modifier.fillMaxWidth().padding(top = 10.dp)) { Text(label, Modifier.weight(0.4f), color = FoodMindMuted); Text(value, Modifier.weight(0.6f), fontWeight = FontWeight.Medium) } } } } }
-                if (detail.warnings.isNotEmpty()) item { FoodMindSurfaceCard { Column { Text("饮食与过敏原背景", fontWeight = FontWeight.Bold); detail.warnings.forEach { Text("• $it", color = FoodMindCoral, modifier = Modifier.padding(top = 6.dp)) } } } }
+                item { FoodMindSurfaceCard { Column { Text("Information FoodMind can reference", fontWeight = FontWeight.Bold, fontSize = 18.sp); detail.facts.forEach { (label, value) -> Row(Modifier.fillMaxWidth().padding(top = 10.dp)) { Text(label, Modifier.weight(0.4f), color = FoodMindMuted); Text(value, Modifier.weight(0.6f), fontWeight = FontWeight.Medium) } } } } }
+                if (detail.warnings.isNotEmpty()) item { FoodMindSurfaceCard { Column { Text("Dietary and allergen context", fontWeight = FontWeight.Bold); detail.warnings.forEach { Text("• $it", color = FoodMindCoral, modifier = Modifier.padding(top = 6.dp)) } } } }
                 item {
                     Button(
                         onClick = {
                             val saveType = when (sourceType) { "CURATED_PLACE" -> "PLACE"; "CURATED_PRODUCT" -> "FOOD_PRODUCT"; "GROUP_RECORD" -> "FOOD_RECORD"; else -> sourceType }
-                            scope.launch { runCatching { client.saveWantToTry(saveType, sourceId) }.onSuccess { saved = true }.onFailure { error = "收藏失败。" } }
+                            scope.launch { runCatching { client.saveWantToTry(saveType, sourceId) }.onSuccess { saved = true }.onFailure { error = "Could not save." } }
                         },
                         enabled = !saved,
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Icon(Icons.Outlined.BookmarkAdd, null); Text(if (saved) "已加入想尝试" else "加入想尝试", modifier = Modifier.padding(start = 8.dp)) }
-                    Text("这里只展示当前后端返回的字段，不补写营养、安全或库存结论。", color = FoodMindMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
+                    ) { Icon(Icons.Outlined.BookmarkAdd, null); Text(if (saved) "Added to Want to Try" else "Add to Want to Try", modifier = Modifier.padding(start = 8.dp)) }
+                    Text("This screen shows only fields returned by the backend; it does not add nutrition, safety, or inventory claims.", color = FoodMindMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
                 }
             }
         }
@@ -113,11 +113,11 @@ private suspend fun loadCatalogueDetail(client: FoodMindApiClient, type: String,
             description = place.addressText,
             tags = place.offerings.take(5).map { it.mealType }.distinct(),
             facts = buildList {
-                add("区域" to place.area)
-                place.addressText?.let { add("地址" to it) }
-                place.priceBand?.let { add("价格带" to "$".repeat(it.coerceIn(1, 4))) }
-                add("可见餐食" to "${place.offerings.size} 项")
-                add("证据观察" to "${place.observations.size} 项")
+                add("Area" to place.area)
+                place.addressText?.let { add("Address" to it) }
+                place.priceBand?.let { add("Price range" to "$".repeat(it.coerceIn(1, 4))) }
+                add("Visible meals" to "${place.offerings.size} items")
+                add("Evidence observations" to "${place.observations.size} items")
             },
             warnings = place.observations.mapNotNull { it.note }.take(4),
         )
@@ -129,8 +129,8 @@ private suspend fun loadCatalogueDetail(client: FoodMindApiClient, type: String,
             description = product.description,
             tags = product.dietaryTagCodes,
             facts = buildList {
-                product.price?.let { add("参考价格" to "${it.amount} ${it.currency}") }
-                product.place?.let { add("地点" to "${it.name} · ${it.area}") }
+                product.price?.let { add("Reference price" to "${it.amount} ${it.currency}") }
+                product.place?.let { add("Place" to "${it.name} · ${it.area}") }
             },
             warnings = product.allergenCodes,
         )
@@ -142,9 +142,9 @@ private suspend fun loadCatalogueDetail(client: FoodMindApiClient, type: String,
             description = meal.description,
             tags = meal.dietaryTagCodes,
             facts = buildList {
-                meal.defaultSpiceLevel?.let { add("默认辣度" to it.toString()) }
-                add("在售地点" to "${meal.offerings.size} 个")
-                meal.offerings.firstOrNull()?.let { add("价格示例" to "${it.price.amount} ${it.price.currency}") }
+                meal.defaultSpiceLevel?.let { add("Default spice level" to it.toString()) }
+                add("Available at" to "${meal.offerings.size} ")
+                meal.offerings.firstOrNull()?.let { add("Price examples" to "${it.price.amount} ${it.price.currency}") }
             },
             warnings = meal.allergenCodes,
         )
@@ -156,10 +156,10 @@ private suspend fun loadCatalogueDetail(client: FoodMindApiClient, type: String,
             description = record.comment,
             tags = listOf(record.visibility),
             facts = buildList {
-                add("发生时间" to record.occurredAt)
-                record.rating?.let { add("评分" to it.toString()) }
-                record.price?.let { add("花费" to "${it.amount} ${it.currency}") }
-                record.wouldEatAgain?.let { add("愿意再吃" to if (it) "是" else "否") }
+                add("Occurred at" to record.occurredAt)
+                record.rating?.let { add("Rating" to it.toString()) }
+                record.price?.let { add("Spending" to "${it.amount} ${it.currency}") }
+                record.wouldEatAgain?.let { add("Would eat again" to if (it) "Yes" else "No") }
             },
         )
     }
