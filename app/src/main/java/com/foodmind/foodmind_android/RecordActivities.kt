@@ -179,7 +179,7 @@ private fun RecordEditorScreen(
             item { Text(if (type == "DRINK") "Record a drink" else "Record a meal", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold); Text("Save to your current backend account.", color = FoodMindMuted) }
             item { OutlinedTextField(name, { name = it }, label = { Text(if (type == "DRINK") "DrinkName" else "MealName") }, modifier = Modifier.fillMaxWidth()) }
             item { OutlinedTextField(place, { place = it }, label = { Text(if (type == "DRINK") "Shop" else "Place") }, modifier = Modifier.fillMaxWidth()) }
-            item { OutlinedTextField(occurredAt, { occurredAt = it }, label = { Text("When (YYYY-MM-DD HH:MM)") }, supportingText = { Text("Your local time") }, modifier = Modifier.fillMaxWidth()) }
+            item { OutlinedTextField(occurredAt, { occurredAt = it }, label = { Text("When (YYYY-MM-DD HH:MM)") }, supportingText = { Text("Singapore time") }, modifier = Modifier.fillMaxWidth()) }
             item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(price, { price = it }, label = { Text("Price") }, modifier = Modifier.weight(1f)); OutlinedTextField(currency, { currency = it.uppercase().take(3) }, label = { Text("Currency") }, modifier = Modifier.weight(1f)) } }
             item { OutlinedTextField(rating, { rating = it }, label = { Text("Rating") }, modifier = Modifier.fillMaxWidth()) }
             if (type == "DRINK") item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(sweetness, { sweetness = it.filter(Char::isDigit) }, label = { Text("Sweetness") }, modifier = Modifier.weight(1f)); OutlinedTextField(ice, { ice = it.filter(Char::isDigit) }, label = { Text("Ice level") }, modifier = Modifier.weight(1f)) } }

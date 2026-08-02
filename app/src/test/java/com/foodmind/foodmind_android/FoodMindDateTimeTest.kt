@@ -23,4 +23,9 @@ class FoodMindDateTimeTest {
         assertEquals("2026-08-02 09:05", formatFoodMindTimestampForEditor("2026-08-02T09:05:00Z", ZoneOffset.UTC))
         assertEquals("2026-08-02T09:05:00Z", normaliseFoodMindTimestamp("2026-08-02 09:05", ZoneOffset.UTC))
     }
+
+    @Test
+    fun defaultsToSingaporeTime() {
+        assertEquals("2026-08-02 17:05", formatFoodMindTimestampForEditor("2026-08-02T09:05:00Z"))
+    }
 }
