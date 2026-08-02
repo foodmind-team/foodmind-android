@@ -87,7 +87,7 @@ Nav key 只包含标量 ID、enum 和必要日期；大型对象从 repository �
 
 RecipeList：搜索/分类、添加 FAB/顶部 action、编辑/删除菜单、空状态。RecipeEditor 使用 modal bottom sheet 或完整 destination，取决于字段长度；长食材/步骤表单优先完整 destination。
 
-当前 Android 已接入 Spring `/api/v1/recipes` 的 owner-scoped list/detail/create/update/delete 与 `If-Match` 版本；无登录或服务不可用时保留明确的本地演示草稿，不把 fallback 称为后端持久化完成。
+当前后端没有 `/api/v1/recipes`。Android 与 Web 一致，将菜谱草稿按账号保存在设备上；生成计划时缩放食材行并调用受支持的 `/cooking-plans/generate`，不把本地草稿称为后端持久化。
 
 图片选择使用系统 Photo Picker，不申请不必要的广泛存储权限；上传走 media 两阶段生命周期。
 
@@ -113,7 +113,7 @@ timeline：
 
 - 群组：服务端决定 owner/member 权限；离组/移除后清相关 repository cache 并返回安全页面。
 - 发现：Lazy grid/list + 分页，只显示 `/explore` 授权内容；不能扩展为公开关注 feed。
-- 收藏：Want to Try 使用公开契约；recipes 等待后端 recipe contract。
+- 收藏：Want to Try 使用公开契约；recipes 为按账号隔离的设备本地草稿，并明确标注不在后端持久化。
 - 我的：资料、偏好、Dashboard、周报；指标不在设备端重算。
 
 ## 9. Chatbot

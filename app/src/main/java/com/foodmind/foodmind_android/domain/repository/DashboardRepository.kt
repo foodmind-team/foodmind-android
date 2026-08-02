@@ -24,7 +24,7 @@ class DashboardRepositoryImpl(private val apiClient: FoodMindApiClient) : Dashbo
             metrics = response.metrics.map {
                 DashboardMetric(
                     code = it.code ?: "UNKNOWN",
-                    label = it.label ?: it.code ?: "指标",
+                    label = it.label ?: it.code ?: "Metrics",
                     value = it.value?.let { value -> if (value % 1 == 0.0) value.toLong().toString() else "%.1f".format(value) } ?: "—",
                     unit = it.currency ?: it.unit.orEmpty(),
                     period = it.period.orEmpty(),

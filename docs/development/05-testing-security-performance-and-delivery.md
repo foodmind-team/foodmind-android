@@ -14,7 +14,7 @@
 
 unit 测试直接构造 ViewModel/repository 并传 fake；不需要为了 Hilt 而启动 Android runtime。
 
-当前已加入 `MainActivitySmokeTest` Compose instrumentation smoke tests（首页渲染、推荐/烹饪模式切换）。2026-08-02 使用 `Pixel_10_Pro` API 37 AVD 执行 `connectedDebugAndroidTest`，2 个测试全部通过。JVM 单测现为 26 个，包含 C-08 `/recipes` MockWebServer CRUD、If-Match 和 bearer 契约覆盖；CookingPlanRepository 已覆盖 Spring `/cooking-plans/generate` 的状态映射。
+当前包含 Compose instrumentation smoke tests，以及覆盖 bearer、401 refresh、correlation/idempotency header、记录 CRUD `If-Match`、公开 endpoint path 和本地食材缩放的 JVM 测试。当前工作站没有可用 Android SDK/emulator，因此本次交付不声称重新运行了 device tests。
 
 ## 2. 必测场景
 

@@ -15,7 +15,7 @@ class HomeViewModelTest {
 
         assertFalse(viewModel.state.value.hasResult)
         assertEquals(HomeMode.COOKING, viewModel.state.value.mode)
-        assertTrue(viewModel.state.value.resultTitle.contains("三文鱼"))
+        assertTrue(viewModel.state.value.resultTitle.contains("salmon", ignoreCase = true))
     }
 
     @Test

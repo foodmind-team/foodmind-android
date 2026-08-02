@@ -24,14 +24,14 @@ data class HomeUiState(
 ) {
     val resultTitle: String
         get() = recommendation?.title ?: if (mode == HomeMode.RECOMMEND) {
-            listOf("海南鸡饭", "咖喱叻沙", "姜葱豆腐拌面")[resultIndex % 3]
-        } else "今晚的姜味味噌三文鱼饭"
+            listOf("Hainanese chicken rice", "Curry laksa", "Ginger scallion tofu noodles")[resultIndex % 3]
+        } else "Tonight’s ginger miso salmon bowl"
 
     val resultMeta: String
-        get() = recommendation?.meta ?: if (mode == HomeMode.RECOMMEND) "本地 · 堂食/外卖 · $$ · 12 分钟" else "4 人份 · 28 分钟 · 2 项待采购"
+        get() = recommendation?.meta ?: if (mode == HomeMode.RECOMMEND) "Local · dine-in/delivery · $$ · 12 minutes" else "4 servings · 28 minutes · 2 items to buy"
 
     val resultReason: String
-        get() = recommendation?.reason ?: if (mode == HomeMode.RECOMMEND) "结合群组口味、距离、预算和今晚的约束，只给出一个有理由的答案。" else "优先使用即将过期的食材，并按资源和安全条件排出执行顺序。"
+        get() = recommendation?.reason ?: if (mode == HomeMode.RECOMMEND) "Combines group taste, distance, budget, and tonight’s constraints into one well-reasoned answer." else "Prioritises ingredients that expire soon and orders the work around available resources and safety constraints."
 }
 
 class HomeViewModel : ViewModel() {
@@ -48,7 +48,8 @@ class HomeViewModel : ViewModel() {
         _state.update { it.copy(mode = mode, hasResult = false, isGenerating = false, errorMessage = null, recommendation = null) }
     }
 
-    fun generateRecommendation() {
+    fun generateRecommendation(request: GenerateRecommendationRequest = lastRequest) {
+        lastRequest = request
         val repository = recommendationRepository
         if (repository == null) {
             _state.update { it.copy(isGenerating = false, hasResult = true, errorMessage = null) }
@@ -65,10 +66,10 @@ class HomeViewModel : ViewModel() {
                 .onFailure { error ->
                     val message = (error as? RecommendationFailureException)?.failure?.let { failure ->
                         when (failure) {
-                            is com.foodmind.foodmind_android.domain.model.RecommendationFailure.Http -> "服务暂时不可用（${failure.statusCode}）"
-                            is com.foodmind.foodmind_android.domain.model.RecommendationFailure.Transport -> "网络连接失败，请检查网络后重试"
+                            is com.foodmind.foodmind_android.domain.model.RecommendationFailure.Http -> "Service is temporarily unavailable (${failure.statusCode}）"
+                            is com.foodmind.foodmind_android.domain.model.RecommendationFailure.Transport -> "Network connection failed. Check your connection and try again."
                         }
-                    } ?: "推荐生成失败，请稍后重试"
+                    } ?: "Could not generate recommendations. Please try again later."
                     _state.update { it.copy(isGenerating = false, hasResult = false, errorMessage = message) }
                 }
         }
@@ -78,7 +79,7 @@ class HomeViewModel : ViewModel() {
         if (recommendationRepository == null) {
             _state.update { it.copy(resultIndex = it.resultIndex + 1, hasResult = true) }
         } else {
-            generateRecommendation()
+            generateRecommendation(lastRequest.copy(parentSessionId = _state.value.recommendation?.sessionId))
         }
     }
 }

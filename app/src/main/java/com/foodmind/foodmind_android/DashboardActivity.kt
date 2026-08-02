@@ -3,7 +3,6 @@ package com.foodmind.foodmind_android
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.viewModels
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,117 +16,74 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Tab
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
+import androidx.compose.ui.unit.sp
+import com.foodmind.foodmind_android.core.network.DashboardMetricResponse
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
-import com.foodmind.foodmind_android.core.network.FoodMindNetwork
-import com.foodmind.foodmind_android.core.network.FoodMindSession
-import com.foodmind.foodmind_android.domain.repository.DashboardData
-import com.foodmind.foodmind_android.domain.repository.DashboardMetric
-import com.foodmind.foodmind_android.domain.repository.DashboardRepository
-import com.foodmind.foodmind_android.domain.repository.DashboardRepositoryImpl
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
-
-data class DashboardUiState(
-    val isLoading: Boolean = true,
-    val empty: Boolean = false,
-    val metrics: List<DashboardMetric> = emptyList(),
-    val errorMessage: String? = null,
-)
-
-class DashboardViewModel : ViewModel() {
-    private val _state = MutableStateFlow(DashboardUiState())
-    val state: StateFlow<DashboardUiState> = _state.asStateFlow()
-    private var repository: DashboardRepository? = null
-
-    fun setRepository(repository: DashboardRepository) { this.repository = repository }
-
-    fun load() {
-        val active = repository ?: run {
-            _state.update { it.copy(isLoading = false, errorMessage = "统计服务未配置") }
-            return
-        }
-        val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val now = Calendar.getInstance()
-        val to = now.clone() as Calendar
-        to.add(Calendar.DAY_OF_YEAR, 1)
-        val from = now.clone() as Calendar
-        from.add(Calendar.DAY_OF_YEAR, -30)
-        _state.update { it.copy(isLoading = true, errorMessage = null) }
-        viewModelScope.launch {
-            active.load(formatter.format(from.time), formatter.format(to.time))
-                .onSuccess { data -> _state.value = DashboardUiState(false, data.empty, data.metrics) }
-                .onFailure { _state.value = DashboardUiState(isLoading = false, errorMessage = "统计加载失败，请稍后重试") }
-        }
-    }
-}
+import java.time.LocalDate
+import java.time.temporal.TemporalAdjusters
+import java.time.DayOfWeek
 
 class DashboardActivity : ComponentActivity() {
-    private val viewModel: DashboardViewModel by viewModels()
+    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); val client = foodMindApiClient(); setContent { FoodMindTheme { DashboardScreen(client, ::finish) } } }
+}
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        FoodMindSession.initialize(this)
-        val api = FoodMindApiClient(
-            FoodMindNetwork.createApi(BuildConfig.FOODMIND_API_BASE_URL, FoodMindSession.tokenStore),
-            FoodMindSession.tokenStore,
-        )
-        viewModel.setRepository(DashboardRepositoryImpl(api))
-        viewModel.load()
-        setContent {
-            FoodMindTheme {
-                val state by viewModel.state.collectAsStateWithLifecycle()
-                DashboardScreen(state = state, onBack = ::finish, onRetry = viewModel::load)
+@Composable
+private fun DashboardScreen(client: FoodMindApiClient, onBack: () -> Unit) {
+    val today = remember { LocalDate.now() }; var tab by remember { mutableIntStateOf(0) }; var from by remember { mutableStateOf(today.minusDays(30).toString()) }; var to by remember { mutableStateOf(today.plusDays(1).toString()) }; var groupBy by remember { mutableStateOf("DAY") }
+    var weekStart by remember { mutableStateOf(today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).toString()) }; var metrics by remember { mutableStateOf<List<DashboardMetricResponse>>(emptyList()) }; var spending by remember { mutableStateOf<List<DashboardMetricResponse>>(emptyList()) }
+    var empty by remember { mutableStateOf(false) }; var loading by remember { mutableStateOf(true) }; var error by remember { mutableStateOf<String?>(null) }; var refresh by remember { mutableIntStateOf(0) }
+    LaunchedEffect(tab, from, to, groupBy, weekStart, refresh) {
+        loading = true
+        runCatching { if (tab == 0) client.dashboard(from, to, groupBy).let { Triple(it.metrics, it.spendingTotals, it.empty) } else client.weeklyRecap(weekStart).let { Triple(it.metrics, it.spendingTotals, it.empty) } }
+            .onSuccess { (m, s, e) -> metrics = m; spending = s; empty = e; error = null }.onFailure { error = "Could not load analytics. Check the dates." }
+        loading = false
+    }
+    FoodMindDetailScaffold("Food insights", onBack) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            PrimaryTabRow(tab) { Tab(tab == 0, { tab = 0 }, text = { Text("Dashboard") }); Tab(tab == 1, { tab = 1 }, text = { Text("Weekly recap") }) }
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { Text(if (tab == 0) "See trends using backend metrics" else "Your weekly recap", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold); Text("Metrics come directly from the backend and are not recalculated on the device.", color = FoodMindMuted) }
+                if (tab == 0) {
+                    item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(from, { from = it }, label = { Text("Start date") }, modifier = Modifier.weight(1f)); OutlinedTextField(to, { to = it }, label = { Text("End date") }, modifier = Modifier.weight(1f)) } }
+                    item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("DAY", "WEEK", "MONTH").forEach { FilterChip(groupBy == it, { groupBy = it }, label = { Text(it) }) } } }
+                } else item { OutlinedTextField(weekStart, { weekStart = it }, label = { Text("Monday date") }, modifier = Modifier.fillMaxWidth()) }
+                if (loading) item { CircularProgressIndicator() }
+                error?.let { item { Text(it, color = FoodMindCoral); TextButton(onClick = { refresh++ }) { Text("Try again") } } }
+                if (!loading && empty) item { FoodMindSurfaceCard { Text("There is not enough data for this period yet.") } }
+                items(metrics, key = { "${it.code}-${it.period}-${it.dimension}" }) { MetricCard(it) }
+                if (spending.isNotEmpty()) item { Text("Spending", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 6.dp)) }
+                items(spending, key = { "spend-${it.code}-${it.period}-${it.dimension}" }) { MetricCard(it) }
+                item { Text("Empty values stay empty; the backend defines percentages and denominators.", color = FoodMindMuted, fontSize = 11.sp) }
             }
         }
     }
 }
 
 @Composable
-private fun DashboardScreen(state: DashboardUiState, onBack: () -> Unit, onRetry: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = onBack) { Text("返回") }
-            Text("数据看板", modifier = Modifier.padding(start = 12.dp), fontWeight = FontWeight.Bold)
-        }
-        when {
-            state.isLoading -> CircularProgressIndicator(modifier = Modifier.padding(24.dp))
-            state.errorMessage != null -> Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(state.errorMessage, color = Color(0xFFB42318))
-                OutlinedButton(onClick = onRetry) { Text("重试") }
-            }
-            state.empty || state.metrics.isEmpty() -> Text("近 30 天还没有足够数据生成看板。", modifier = Modifier.padding(24.dp), color = FoodMindMuted)
-            else -> LazyColumn(
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                items(state.metrics, key = { "${it.code}-${it.period}" }) { metric ->
-                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(metric.label, fontWeight = FontWeight.Bold, color = FoodMindInk)
-                            Text("${metric.value} ${metric.unit}".trim(), modifier = Modifier.padding(top = 8.dp), color = FoodMindGreenDark)
-                            if (metric.period.isNotBlank()) Text(metric.period, modifier = Modifier.padding(top = 5.dp), color = FoodMindMuted)
-                        }
-                    }
-                }
-            }
+private fun MetricCard(metric: DashboardMetricResponse) {
+    Card(colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(metric.label ?: metric.code ?: "Metrics", fontWeight = FontWeight.Bold); Text(if (metric.empty) "No data yet" else listOfNotNull(metric.value?.toString(), metric.currency, metric.unit).joinToString(" "), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FoodMindGreen, modifier = Modifier.padding(top = 7.dp))
+            metric.dimensionLabel?.let { Text(it, color = FoodMindMuted) }; metric.denominator?.takeIf { it > 0 }?.let { denominator -> LinearProgressIndicator(progress = { ((metric.value ?: 0.0) / denominator).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().padding(top = 9.dp)) }
+            Text(metric.period.orEmpty(), color = FoodMindMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
         }
     }
 }

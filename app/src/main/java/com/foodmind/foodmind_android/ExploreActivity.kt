@@ -1,110 +1,73 @@
 package com.foodmind.foodmind_android
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.viewModels
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BookmarkAdd
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.foodmind.foodmind_android.core.network.ExploreItemResponse
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
-import com.foodmind.foodmind_android.core.network.FoodMindNetwork
-import com.foodmind.foodmind_android.core.network.FoodMindSession
-import com.foodmind.foodmind_android.domain.repository.ExploreItem
-import com.foodmind.foodmind_android.domain.repository.ExplorePage
-import com.foodmind.foodmind_android.domain.repository.ExploreRepository
-import com.foodmind.foodmind_android.domain.repository.ExploreRepositoryImpl
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class ExploreUiState(
-    val isLoading: Boolean = true,
-    val items: List<ExploreItem> = emptyList(),
-    val nextCursor: String? = null,
-    val hasNext: Boolean = false,
-    val errorMessage: String? = null,
-)
-
-class ExploreViewModel : ViewModel() {
-    private val _state = MutableStateFlow(ExploreUiState())
-    val state: StateFlow<ExploreUiState> = _state.asStateFlow()
-    private var repository: ExploreRepository? = null
-
-    fun setRepository(repository: ExploreRepository) { this.repository = repository }
-
-    fun load() = loadPage(after = null, replace = true)
-
-    fun loadMore() {
-        val cursor = _state.value.nextCursor ?: return
-        if (_state.value.isLoading) return
-        loadPage(after = cursor, replace = false)
-    }
-
-    private fun loadPage(after: String?, replace: Boolean) {
-        val active = repository ?: run {
-            _state.update { it.copy(isLoading = false, errorMessage = "发现服务未配置") }
-            return
-        }
-        _state.update { it.copy(isLoading = true, errorMessage = null) }
-        viewModelScope.launch {
-            active.page(after)
-                .onSuccess { page ->
-                    _state.update {
-                        it.copy(
-                            isLoading = false,
-                            items = if (replace) page.items else it.items + page.items,
-                            nextCursor = page.nextCursor,
-                            hasNext = page.hasNext,
-                        )
-                    }
-                }
-                .onFailure { _state.update { it.copy(isLoading = false, errorMessage = "发现内容加载失败，请稍后重试") } }
-        }
-    }
-}
-
 class ExploreActivity : ComponentActivity() {
-    private val viewModel: ExploreViewModel by viewModels()
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        FoodMindSession.initialize(this)
-        val api = FoodMindApiClient(
-            FoodMindNetwork.createApi(BuildConfig.FOODMIND_API_BASE_URL, FoodMindSession.tokenStore),
-            FoodMindSession.tokenStore,
-        )
-        viewModel.setRepository(ExploreRepositoryImpl(api))
-        viewModel.load()
+        val client = foodMindApiClient()
         setContent {
             FoodMindTheme {
-                val state by viewModel.state.collectAsStateWithLifecycle()
-                ExploreScreen(state = state, onBack = ::finish, onRetry = viewModel::load, onLoadMore = viewModel::loadMore)
+                ExploreScreen(
+                    client = client,
+                    onNavigate = ::openFoodMindRoot,
+                    onOpen = { type, id -> startActivity(CatalogueDetailActivity.intent(this, type, id)) },
+                    onRecord = { startActivity(RecordEditorActivity.intent(this, "FOOD", null)) },
+                    onChat = { startActivity(Intent(this, ChatListActivity::class.java)) },
+                )
             }
         }
     }
@@ -112,39 +75,122 @@ class ExploreActivity : ComponentActivity() {
 
 @Composable
 private fun ExploreScreen(
-    state: ExploreUiState,
-    onBack: () -> Unit,
-    onRetry: () -> Unit,
-    onLoadMore: () -> Unit,
+    client: FoodMindApiClient,
+    onNavigate: (FoodMindRoot) -> Unit,
+    onOpen: (String, String) -> Unit,
+    onRecord: () -> Unit,
+    onChat: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = onBack) { Text("返回") }
-            Text("发现", modifier = Modifier.padding(start = 12.dp), fontWeight = FontWeight.Bold)
-        }
-        when {
-            state.isLoading && state.items.isEmpty() -> CircularProgressIndicator(modifier = Modifier.padding(24.dp))
-            state.errorMessage != null && state.items.isEmpty() -> Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(state.errorMessage, color = Color(0xFFB42318))
-                OutlinedButton(onClick = onRetry) { Text("重试") }
+    var query by remember { mutableStateOf("") }
+    var activeQuery by remember { mutableStateOf("") }
+    var type by remember { mutableStateOf<String?>(null) }
+    var items by remember { mutableStateOf<List<ExploreItemResponse>>(emptyList()) }
+    var nextCursor by remember { mutableStateOf<String?>(null) }
+    var hasNext by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var savedIds by remember { mutableStateOf(setOf<String>()) }
+    var refresh by remember { mutableStateOf(0) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(activeQuery, type, refresh) {
+        loading = true
+        runCatching {
+            if (activeQuery.isBlank()) client.explore(topics = null).let { Triple(it.items, it.nextCursor, it.hasNext) }
+            else client.search(activeQuery, type).let { Triple(it.items, it.nextCursor, it.hasNext) }
+        }.onSuccess { (results, cursor, more) -> items = results; nextCursor = cursor; hasNext = more; error = null }
+            .onFailure { error = "Could not load Discover content. Please try again." }
+        loading = false
+    }
+
+    FoodMindRootScaffold(
+        selected = FoodMindRoot.EXPLORE,
+        title = "Discover",
+        onNavigate = onNavigate,
+        topActions = { IconButton(onClick = onChat) { Icon(Icons.Outlined.ChatBubbleOutline, "FoodMind Assistant") } },
+        onRecord = onRecord,
+    ) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    query, { query = it }, modifier = Modifier.weight(1f), singleLine = true,
+                    placeholder = { Text("Search meals, places, and products…") },
+                    leadingIcon = { Icon(Icons.Outlined.Search, null) },
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { activeQuery = query.trim() }),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                )
+                IconButton(onClick = { activeQuery = query.trim() }) { Icon(Icons.Outlined.Search, "Search") }
             }
-            state.items.isEmpty() -> Text("暂时没有发现内容。", modifier = Modifier.padding(24.dp), color = FoodMindMuted)
-            else -> LazyColumn(
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                items(state.items, key = { it.id }) { item ->
-                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(item.title, fontWeight = FontWeight.Bold, color = FoodMindInk)
-                            if (item.subtitle.isNotBlank()) Text(item.subtitle, modifier = Modifier.padding(top = 4.dp), color = FoodMindMuted)
-                            if (item.snippet.isNotBlank()) Text(item.snippet, modifier = Modifier.padding(top = 7.dp), color = FoodMindInk)
-                            Text(item.sourceType, modifier = Modifier.padding(top = 7.dp), color = FoodMindGreen, fontWeight = FontWeight.Medium)
-                        }
+            Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(null to "Recommendations", "FOOD_RECORD" to "Meal", "PLACE" to "Place", "FOOD_PRODUCT" to "Product").forEach { (code, label) ->
+                    FilterChip(selected = type == code, onClick = { type = code; if (activeQuery.isBlank() && code != null) activeQuery = query.ifBlank { label } }, label = { Text(label) })
+                }
+            }
+            when {
+                loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                error != null -> Column(Modifier.padding(24.dp)) { Text(error!!, color = FoodMindCoral); TextButton(onClick = { refresh++ }) { Text("Try again") } }
+                items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No matching content found.", color = FoodMindMuted) }
+                else -> LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(8.dp, 8.dp, 8.dp, 100.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    items(items, key = { "${it.sourceType}-${it.sourceId}" }) { item ->
+                        ExploreCard(
+                            item = item,
+                            saved = item.sourceId in savedIds,
+                            onOpen = { item.sourceType?.let { sourceType -> item.sourceId?.let { onOpen(sourceType, it) } } },
+                            onSave = {
+                                val sourceId = item.sourceId ?: return@ExploreCard
+                                val saveType = when (item.sourceType) { "CURATED_PLACE" -> "PLACE"; "CURATED_PRODUCT" -> "FOOD_PRODUCT"; "GROUP_RECORD" -> "FOOD_RECORD"; else -> item.sourceType ?: return@ExploreCard }
+                                savedIds = savedIds + sourceId
+                                scope.launch { runCatching { client.saveWantToTry(saveType, sourceId) }.onFailure { savedIds = savedIds - sourceId; error = "Could not save." } }
+                            },
+                        )
+                    }
+                    if (hasNext) item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(2) }) {
+                        TextButton(onClick = { scope.launch {
+                            loading = true
+                            runCatching {
+                                if (activeQuery.isBlank()) client.explore(after = nextCursor).let { Triple(it.items, it.nextCursor, it.hasNext) }
+                                else client.search(activeQuery, type, nextCursor).let { Triple(it.items, it.nextCursor, it.hasNext) }
+                            }.onSuccess { page -> items = items + page.first; nextCursor = page.second; hasNext = page.third }
+                            loading = false
+                        } }, modifier = Modifier.fillMaxWidth()) { Text("Load more") }
                     }
                 }
-                if (state.hasNext) item {
-                    Button(onClick = onLoadMore, enabled = !state.isLoading, modifier = Modifier.fillMaxWidth()) { Text("加载更多") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExploreCard(item: ExploreItemResponse, saved: Boolean, onOpen: () -> Unit, onSave: () -> Unit) {
+    Card(
+        onClick = onOpen,
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, FoodMindLine),
+    ) {
+        Column {
+            if (!item.imageReference.isNullOrBlank()) AsyncImage(
+                model = item.imageReference,
+                contentDescription = item.title,
+                modifier = Modifier.fillMaxWidth().aspectRatio(if ((item.title?.length ?: 0) % 2 == 0) 0.9f else 1.15f).clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)),
+                contentScale = ContentScale.Crop,
+            ) else Box(
+                Modifier.fillMaxWidth().height(if ((item.title?.length ?: 0) % 2 == 0) 150.dp else 190.dp)
+                    .background(Brush.linearGradient(listOf(Color(0xFFDCEFE4), Color(0xFFF6ECC1)))),
+                contentAlignment = Alignment.Center,
+            ) { Text(item.sourceType.orEmpty().replace('_', ' '), color = FoodMindGreenDark, fontWeight = FontWeight.Bold) }
+            Column(Modifier.padding(11.dp)) {
+                Text(item.title ?: "Untitled content", maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold, color = FoodMindInk)
+                item.snippet?.takeIf(String::isNotBlank)?.let { Text(it, color = FoodMindMuted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp)) }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(item.subtitle ?: item.sourceType.orEmpty(), Modifier.weight(1f), color = FoodMindMuted, fontSize = 11.sp, maxLines = 1)
+                    IconButton(onClick = onSave) { Icon(Icons.Outlined.BookmarkAdd, if (saved) "Saved" else "Want to Try", tint = if (saved) FoodMindCoral else FoodMindMuted) }
                 }
             }
         }

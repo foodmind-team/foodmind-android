@@ -2,6 +2,7 @@ package com.foodmind.foodmind_android
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
@@ -23,7 +24,10 @@ fun FoodMindTheme(content: @Composable () -> Unit) {
             surface = Color.White,
             background = FoodMindPaper,
             onSurface = FoodMindInk,
+            secondary = FoodMindCoral,
+            outline = FoodMindLine,
         ),
+        typography = Typography(),
         content = content,
     )
 }

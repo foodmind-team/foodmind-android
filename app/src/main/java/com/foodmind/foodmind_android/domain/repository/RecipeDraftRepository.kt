@@ -1,7 +1,8 @@
 package com.foodmind.foodmind_android.domain.repository
 
-import com.foodmind.foodmind_android.core.network.FoodMindApiClient
-import com.foodmind.foodmind_android.core.network.UserRecipeRequest
+import android.content.Context
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import java.util.UUID
 
 data class RecipeDraft(
@@ -9,85 +10,118 @@ data class RecipeDraft(
     val name: String,
     val servings: Int,
     val minutes: Int,
-    val version: Long = 0,
-    val ingredients: List<String> = listOf("请补充食材"),
-    val steps: List<String> = listOf("请补充步骤"),
+    val category: String = "Home cooking",
+    val ingredients: List<String> = emptyList(),
+    val steps: List<String> = emptyList(),
     val tags: List<String> = emptyList(),
     val allergenHints: List<String> = emptyList(),
     val imageUrl: String? = null,
 )
 
-/** Local fixture boundary until backend contract C-08 exposes owner-scoped recipe CRUD. */
+/**
+ * Account-scoped, device-local recipe storage.
+ *
+ * The backend OpenAPI contract has no recipe CRUD endpoints. Keeping drafts here mirrors the web
+ * client and prevents the UI from claiming server persistence that does not exist.
+ */
 object RecipeDraftStore {
-    private val drafts = mutableListOf(
-        RecipeDraft("salmon", "姜味味噌三文鱼饭", 4, 28),
-        RecipeDraft("noodle", "姜葱豆腐拌面", 2, 20),
-        RecipeDraft("shakshuka", "番茄扁豆北非蛋", 4, 30),
-    )
+    private val gson = Gson()
+    private var preferences: android.content.SharedPreferences? = null
+    private var storageKey = "recipes:guest"
+    private var drafts = seedDrafts().toMutableList()
+
+    @Synchronized
+    fun initialize(context: Context, userId: String?) {
+        preferences = context.applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+        storageKey = "recipes:${userId?.takeIf(String::isNotBlank) ?: "guest"}"
+        val json = preferences?.getString(storageKey, null)
+        drafts = if (json.isNullOrBlank()) {
+            seedDrafts().toMutableList().also(::persist)
+        } else {
+            runCatching {
+                gson.fromJson<List<RecipeDraft>>(json, object : TypeToken<List<RecipeDraft>>() {}.type)
+                    .orEmpty().toMutableList()
+            }.getOrElse { seedDrafts().toMutableList() }
+        }
+    }
 
     @Synchronized fun list(): List<RecipeDraft> = drafts.toList()
-
     @Synchronized fun find(id: String): RecipeDraft? = drafts.firstOrNull { it.id == id }
 
-    @Synchronized fun save(id: String?, name: String, servings: Int, minutes: Int): RecipeDraft {
+    @Synchronized
+    fun save(
+        id: String?,
+        name: String,
+        servings: Int,
+        minutes: Int,
+        category: String = "Home cooking",
+        ingredients: List<String>? = null,
+        steps: List<String>? = null,
+        tags: List<String>? = null,
+        allergenHints: List<String>? = null,
+        imageUrl: String? = null,
+    ): RecipeDraft {
         val previous = id?.let(::find)
         val draft = RecipeDraft(
             id = id ?: UUID.randomUUID().toString(),
             name = name,
             servings = servings,
             minutes = minutes,
-            version = previous?.version ?: 0,
-            ingredients = previous?.ingredients ?: listOf("请补充食材"),
-            steps = previous?.steps ?: listOf("请补充步骤"),
-            tags = previous?.tags ?: emptyList(),
-            allergenHints = previous?.allergenHints ?: emptyList(),
-            imageUrl = previous?.imageUrl,
+            category = category,
+            ingredients = ingredients ?: previous?.ingredients.orEmpty(),
+            steps = steps ?: previous?.steps.orEmpty(),
+            tags = tags ?: previous?.tags.orEmpty(),
+            allergenHints = allergenHints ?: previous?.allergenHints.orEmpty(),
+            imageUrl = imageUrl ?: previous?.imageUrl,
         )
         val index = drafts.indexOfFirst { it.id == draft.id }
         if (index >= 0) drafts[index] = draft else drafts.add(draft)
+        persist(drafts)
         return draft
     }
 
-    @Synchronized fun delete(id: String) { drafts.removeAll { it.id == id } }
-
-    @Synchronized fun replaceFromRemote(remote: List<RecipeDraft>) {
-        if (remote.isNotEmpty()) {
-            drafts.clear()
-            drafts.addAll(remote)
-        }
+    @Synchronized
+    fun delete(id: String) {
+        drafts.removeAll { it.id == id }
+        persist(drafts)
     }
+
+    private fun persist(value: List<RecipeDraft>) {
+        preferences?.edit()?.putString(storageKey, gson.toJson(value))?.apply()
+    }
+
+    private fun seedDrafts() = listOf(
+        RecipeDraft(
+            id = "salmon",
+            name = "Ginger miso salmon bowl",
+            servings = 4,
+            minutes = 28,
+            category = "Dinner",
+            ingredients = listOf("Salmon 500 g", "Cooked rice 4 bowls", "Miso 2 tbsp", "Ginger 15 g"),
+            steps = listOf("Mix the miso and grated ginger.", "Pan-sear the salmon and brush with sauce.", "Serve with warm rice."),
+            tags = listOf("High protein", "Quick"),
+        ),
+        RecipeDraft(
+            id = "noodle",
+            name = "Ginger scallion tofu noodles",
+            servings = 2,
+            minutes = 20,
+            category = "Noodles",
+            ingredients = listOf("Noodles 220 g", "Firm tofu 300 g", "Ginger 10 g", "Spring onions 3"),
+            steps = listOf("Cook and drain the noodles.", "Sauté the tofu, ginger, and spring onions.", "Toss together and serve immediately."),
+            tags = listOf("Vegetarian"),
+        ),
+        RecipeDraft(
+            id = "shakshuka",
+            name = "Tomato lentil shakshuka",
+            servings = 4,
+            minutes = 30,
+            category = "Brunch",
+            ingredients = listOf("Tomatoes 600 g", "Cooked lentils 250 g", "Eggs 4"),
+            steps = listOf("Cook the tomatoes and lentils until thick.", "Crack in the eggs, cover, and cook through."),
+            tags = listOf("One pot"),
+        ),
+    )
+
+    private const val PREFERENCES = "foodmind.recipe-drafts.v1"
 }
-
-/** C-08 client adapter. UI can fall back to the local draft store when no backend is configured. */
-class UserRecipeRepository(private val client: FoodMindApiClient) {
-    suspend fun list(): List<RecipeDraft> = client.recipes().items.map { it.toDraft() }
-
-    suspend fun create(draft: RecipeDraft): RecipeDraft = client.createRecipe(draft.toRequest()).toDraft()
-
-    suspend fun update(draft: RecipeDraft): RecipeDraft = client.updateRecipe(draft.id, draft.version, draft.toRequest()).toDraft()
-
-    suspend fun delete(id: String) { client.deleteRecipe(id) }
-}
-
-private fun com.foodmind.foodmind_android.core.network.UserRecipeResponse.toDraft() = RecipeDraft(
-    id = id ?: error("Recipe API returned an id-less recipe"),
-    name = name,
-    servings = servings,
-    minutes = 30,
-    version = version,
-    ingredients = ingredients,
-    steps = steps,
-    tags = tags,
-    allergenHints = allergenHints,
-    imageUrl = imageUrl,
-)
-
-private fun RecipeDraft.toRequest() = UserRecipeRequest(
-    name = name,
-    servings = servings,
-    imageUrl = imageUrl,
-    tags = tags,
-    allergenHints = allergenHints,
-    ingredients = ingredients.filter { it.isNotBlank() },
-    steps = steps.filter { it.isNotBlank() },
-)

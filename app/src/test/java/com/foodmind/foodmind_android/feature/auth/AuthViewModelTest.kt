@@ -1,5 +1,6 @@
 package com.foodmind.foodmind_android.feature.auth
 
+import com.foodmind.foodmind_android.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -13,7 +14,7 @@ class AuthViewModelTest {
         viewModel.updatePassword("password123")
         viewModel.login()
 
-        assertEquals("请输入有效邮箱", viewModel.state.value.errorMessage)
+        assertEquals(R.string.error_valid_email, viewModel.state.value.errorMessageRes)
         assertFalse(viewModel.state.value.isLoading)
     }
 
@@ -25,7 +26,7 @@ class AuthViewModelTest {
         viewModel.updatePassword("short")
         viewModel.login()
 
-        assertEquals("密码至少需要 8 位", viewModel.state.value.errorMessage)
+        assertEquals(R.string.error_password_min_length, viewModel.state.value.errorMessageRes)
         assertFalse(viewModel.state.value.isLoading)
     }
 }

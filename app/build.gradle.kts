@@ -3,6 +3,15 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val debugApiBaseUrl = providers.gradleProperty("foodmind.debugApiBaseUrl")
+    .orElse(providers.environmentVariable("FOODMIND_API_BASE_URL"))
+    // 10.0.2.2 is the Android Emulator's route to the development host.
+    .orElse("http://10.0.2.2:8080/api/v1/")
+
+val releaseApiBaseUrl = providers.environmentVariable("FOODMIND_API_BASE_URL")
+    .orElse(providers.gradleProperty("foodmind.apiBaseUrl"))
+    .orElse("https://api.foodmind.example/api/v1/")
+
 android {
     namespace = "com.foodmind.foodmind_android"
     // core-ktx 1.19.0 requires API 37 during AAR metadata validation.
@@ -21,6 +30,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
         compose = true
@@ -28,18 +38,19 @@ android {
     }
     buildTypes {
         debug {
-            buildConfigField("String", "FOODMIND_API_BASE_URL", "\"http://10.0.2.2:8080/api/v1/\"")
+            buildConfigField("String", "FOODMIND_API_BASE_URL", "\"${debugApiBaseUrl.get()}\"")
         }
         release {
             optimization {
                 enable = false
             }
-            buildConfigField("String", "FOODMIND_API_BASE_URL", "\"https://api.foodmind.example/api/v1/\"")
+            buildConfigField("String", "FOODMIND_API_BASE_URL", "\"${releaseApiBaseUrl.get()}\"")
         }
     }
 }
 
 dependencies {
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
     implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.constraintlayout)
@@ -60,6 +71,7 @@ dependencies {
     implementation(libs.retrofit.gson)
     implementation(libs.okhttp)
     implementation(libs.gson)
+    implementation(libs.coil.compose)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     implementation(libs.material)

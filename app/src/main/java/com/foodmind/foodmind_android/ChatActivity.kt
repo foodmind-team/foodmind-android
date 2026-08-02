@@ -1,26 +1,42 @@
 package com.foodmind.foodmind_android
 
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,9 +51,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.foodmind.foodmind_android.core.network.ChatMessageResponse
+import com.foodmind.foodmind_android.core.network.ChatReferenceResponse
+import com.foodmind.foodmind_android.core.network.ExploreItemResponse
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
-import com.foodmind.foodmind_android.core.network.FoodMindNetwork
-import com.foodmind.foodmind_android.core.network.FoodMindSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,7 +64,11 @@ data class ChatUiState(
     val isLoading: Boolean = true,
     val isSending: Boolean = false,
     val sessionId: String? = null,
+    val title: String = "FoodMind Assistant",
     val messages: List<ChatMessageResponse> = emptyList(),
+    val attachedReferences: List<ChatReferenceResponse> = emptyList(),
+    val searchResults: List<ExploreItemResponse> = emptyList(),
+    val isSearching: Boolean = false,
     val errorMessage: String? = null,
 )
 
@@ -56,45 +76,66 @@ class ChatViewModel : ViewModel() {
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
     private var apiClient: FoodMindApiClient? = null
+    private var started = false
 
     fun setApiClient(apiClient: FoodMindApiClient) { this.apiClient = apiClient }
 
-    fun start() {
-        val api = apiClient ?: run {
-            _state.update { it.copy(isLoading = false, errorMessage = "聊天服务未配置") }
-            return
-        }
+    fun open(sessionId: String?) {
+        if (started) return
+        started = true
+        val api = apiClient ?: return
         viewModelScope.launch {
-            runCatching { api.createChatSession("FoodMind 助手") }
-                .onSuccess { session ->
-                    val id = session.id
-                    if (id == null) _state.value = ChatUiState(isLoading = false, errorMessage = "聊天会话无效")
-                    else {
-                        _state.update { it.copy(isLoading = false, sessionId = id) }
-                        loadMessages(api, id)
-                    }
-                }
-                .onFailure { _state.value = ChatUiState(isLoading = false, errorMessage = "聊天会话创建失败，请稍后重试") }
+            runCatching {
+                val session = if (sessionId == null) api.createChatSession("FoodMind Assistant") else api.chatSession(sessionId)
+                val id = session.id ?: error("missing session id")
+                val messages = api.chatMessages(id).items
+                Triple(id, session.title ?: "FoodMind Assistant", messages)
+            }.onSuccess { (id, title, messages) -> _state.value = ChatUiState(false, sessionId = id, title = title, messages = messages) }
+                .onFailure { _state.value = ChatUiState(false, errorMessage = "Could not load this conversation. Please try again.") }
         }
     }
+
+    fun retry(sessionId: String?) { started = false; open(sessionId) }
 
     fun send(content: String) {
         val api = apiClient ?: return
-        val sessionId = _state.value.sessionId ?: return
+        val id = _state.value.sessionId ?: return
         if (content.isBlank() || _state.value.isSending) return
         _state.update { it.copy(isSending = true, errorMessage = null) }
+        val referenceIds = _state.value.attachedReferences.mapNotNull { it.id }
         viewModelScope.launch {
-            runCatching { api.postChatMessage(sessionId, content.trim()) }
-                .onSuccess { message -> _state.update { it.copy(isSending = false, messages = it.messages + message) } }
-                .onFailure { _state.update { it.copy(isSending = false, errorMessage = "消息发送失败，请稍后重试") } }
+            runCatching { api.postChatMessage(id, content.trim(), referenceIds) }
+                .onSuccess { message ->
+                    val optimisticUser = ChatMessageResponse(id = "local-${System.nanoTime()}", sessionId = id, role = "USER", content = content.trim())
+                    _state.update { it.copy(isSending = false, messages = it.messages + optimisticUser + message, attachedReferences = emptyList()) }
+                }.onFailure { _state.update { it.copy(isSending = false, errorMessage = "Could not send the message. Please try again.") } }
         }
     }
 
-    private suspend fun loadMessages(api: FoodMindApiClient, sessionId: String) {
-        runCatching { api.chatMessages(sessionId) }
-            .onSuccess { page -> _state.update { it.copy(messages = page.items) } }
-            .onFailure { _state.update { it.copy(errorMessage = "历史消息加载失败") } }
+    fun search(query: String) {
+        val api = apiClient ?: return
+        if (query.trim().length < 2) { _state.update { it.copy(searchResults = emptyList()) }; return }
+        _state.update { it.copy(isSearching = true) }
+        viewModelScope.launch {
+            runCatching { api.search(query.trim()).items }
+                .onSuccess { results -> _state.update { it.copy(isSearching = false, searchResults = results) } }
+                .onFailure { _state.update { it.copy(isSearching = false, errorMessage = "Could not search sources.") } }
+        }
     }
+
+    fun attach(item: ExploreItemResponse) {
+        val api = apiClient ?: return
+        val id = _state.value.sessionId ?: return
+        val type = item.sourceType ?: return
+        val sourceId = item.sourceId ?: return
+        viewModelScope.launch {
+            runCatching { api.shareChatReference(id, type, sourceId) }
+                .onSuccess { reference -> _state.update { it.copy(attachedReferences = (it.attachedReferences + reference).distinctBy(ChatReferenceResponse::id), searchResults = emptyList()) } }
+                .onFailure { _state.update { it.copy(errorMessage = "This source cannot be attached right now.") } }
+        }
+    }
+
+    fun removeReference(id: String?) { _state.update { state -> state.copy(attachedReferences = state.attachedReferences.filterNot { it.id == id }) } }
 }
 
 class ChatActivity : ComponentActivity() {
@@ -102,19 +143,20 @@ class ChatActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        FoodMindSession.initialize(this)
-        val api = FoodMindApiClient(
-            FoodMindNetwork.createApi(BuildConfig.FOODMIND_API_BASE_URL, FoodMindSession.tokenStore),
-            FoodMindSession.tokenStore,
-        )
-        viewModel.setApiClient(api)
-        viewModel.start()
+        val sessionId = intent.getStringExtra(EXTRA_SESSION_ID)
+        viewModel.setApiClient(foodMindApiClient())
+        viewModel.open(sessionId)
         setContent {
             FoodMindTheme {
                 val state by viewModel.state.collectAsStateWithLifecycle()
-                ChatScreen(state = state, onBack = ::finish, onRetry = viewModel::start, onSend = viewModel::send)
+                ChatScreen(state, ::finish, { viewModel.retry(sessionId) }, viewModel::send, viewModel::search, viewModel::attach, viewModel::removeReference)
             }
         }
+    }
+
+    companion object {
+        private const val EXTRA_SESSION_ID = "session_id"
+        fun intent(context: Context, sessionId: String?): Intent = Intent(context, ChatActivity::class.java).apply { sessionId?.let { putExtra(EXTRA_SESSION_ID, it) } }
     }
 }
 
@@ -124,32 +166,64 @@ private fun ChatScreen(
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onSend: (String) -> Unit,
+    onSearch: (String) -> Unit,
+    onAttach: (ExploreItemResponse) -> Unit,
+    onRemoveReference: (String?) -> Unit,
 ) {
     var draft by remember { mutableStateOf("") }
-    Column(modifier = Modifier.fillMaxSize().imePadding()) {
-        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = onBack) { Text("返回") }
-            Text("FoodMind 助手", modifier = Modifier.padding(start = 12.dp), fontWeight = FontWeight.Bold)
-        }
-        when {
-            state.isLoading -> CircularProgressIndicator(modifier = Modifier.padding(24.dp))
-            state.errorMessage != null && state.sessionId == null -> Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(state.errorMessage, color = Color(0xFFB42318))
-                OutlinedButton(onClick = onRetry) { Text("重试") }
-            }
-            else -> {
-                LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (state.messages.isEmpty()) item { Text("可以问我关于记录、群组和饮食偏好的问题。", color = FoodMindMuted) }
-                    items(state.messages, key = { it.id ?: "${it.createdAt}-${it.role}" }) { message ->
-                        Card(colors = CardDefaults.cardColors(containerColor = if (message.role == "USER") FoodMindGreenDark else Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
-                            Text(message.content.orEmpty(), modifier = Modifier.padding(14.dp), color = if (message.role == "USER") Color.White else FoodMindInk)
+    var sourceQuery by remember { mutableStateOf("") }
+    var showSources by remember { mutableStateOf(false) }
+    FoodMindDetailScaffold(state.title, onBack) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding).imePadding()) {
+            when {
+                state.isLoading -> CircularProgressIndicator(Modifier.padding(24.dp))
+                state.sessionId == null -> Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(state.errorMessage ?: "Could not open chat", color = FoodMindCoral)
+                    OutlinedButton(onClick = onRetry) { Text("Try again") }
+                }
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        if (state.messages.isEmpty()) item {
+                            Text("I am the FoodMind Assistant. I can help with food decisions and answer using the authorised sources you attach.", color = FoodMindMuted, modifier = Modifier.padding(12.dp))
+                        }
+                        items(state.messages, key = { it.id ?: "${it.createdAt}-${it.role}" }) { message ->
+                            val user = message.role == "USER"
+                            Column(horizontalAlignment = if (user) Alignment.End else Alignment.Start, modifier = Modifier.fillMaxWidth()) {
+                                Card(
+                                    shape = RoundedCornerShape(18.dp),
+                                    colors = CardDefaults.cardColors(containerColor = if (user) FoodMindGreenDark else Color.White),
+                                    border = if (user) null else BorderStroke(1.dp, FoodMindLine),
+                                ) { Text(message.content.orEmpty(), Modifier.padding(15.dp), color = if (user) Color.White else FoodMindInk) }
+                                if (message.sources.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 5.dp)) {
+                                    message.sources.take(3).forEach { source -> AssistChip(onClick = {}, label = { Text(source.title ?: source.sourceType ?: "Source") }) }
+                                }
+                            }
                         }
                     }
-                }
-                state.errorMessage?.let { Text(it, modifier = Modifier.padding(horizontal = 20.dp), color = Color(0xFFB42318)) }
-                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.Bottom) {
-                    OutlinedTextField(value = draft, onValueChange = { draft = it }, label = { Text("输入消息") }, modifier = Modifier.weight(1f), maxLines = 4)
-                    Button(onClick = { onSend(draft); draft = "" }, enabled = draft.isNotBlank() && !state.isSending, modifier = Modifier.padding(start = 8.dp)) { Text("发送") }
+                    state.errorMessage?.let { Text(it, Modifier.padding(horizontal = 16.dp), color = FoodMindCoral) }
+                    if (showSources) Column(Modifier.fillMaxWidth().background(Color.White).padding(12.dp)) {
+                        OutlinedTextField(
+                            sourceQuery, { sourceQuery = it; onSearch(it) }, modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Search FoodMind sources to attach") }, singleLine = true,
+                            trailingIcon = { IconButton(onClick = { showSources = false }) { Icon(Icons.Outlined.Close, "Close") } },
+                        )
+                        state.searchResults.take(4).forEach { result -> TextButton(onClick = { onAttach(result); showSources = false }, modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) { Text(result.title ?: "Untitled"); Text(result.sourceType.orEmpty(), color = FoodMindMuted) }
+                            Icon(Icons.Outlined.Add, null)
+                        } }
+                    }
+                    if (state.attachedReferences.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        state.attachedReferences.forEach { reference -> AssistChip(onClick = { onRemoveReference(reference.id) }, label = { Text(reference.title ?: reference.sourceType ?: "Source") }, trailingIcon = { Icon(Icons.Outlined.Close, "Remove") }) }
+                    }
+                    Row(Modifier.fillMaxWidth().background(Color.White).padding(10.dp), verticalAlignment = Alignment.Bottom) {
+                        IconButton(onClick = { showSources = !showSources }) { Icon(Icons.Outlined.AttachFile, "Attach source") }
+                        OutlinedTextField(draft, { draft = it }, placeholder = { Text("Send a message…") }, modifier = Modifier.weight(1f), maxLines = 4)
+                        IconButton(onClick = { onSend(draft); draft = "" }, enabled = draft.isNotBlank() && !state.isSending) { Icon(Icons.AutoMirrored.Outlined.Send, "Send") }
+                    }
                 }
             }
         }

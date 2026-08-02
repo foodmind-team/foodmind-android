@@ -10,6 +10,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -61,6 +62,29 @@ class FoodMindNetworkTest {
         assertEquals("access-2", tokenStore.accessToken())
         assertEquals("refresh-2", tokenStore.refreshToken())
         assertEquals("/api/v1/auth/refresh", request.path)
+    }
+
+    @Test
+    fun authenticatedCallRefreshesOnceAfterUnauthorizedResponse() = runTest {
+        tokenStore.saveAccessToken("expired-access")
+        tokenStore.saveRefreshToken("refresh-1")
+        server.enqueue(MockResponse().setResponseCode(401))
+        server.enqueue(MockResponse().setResponseCode(200).setBody(
+            Gson().toJson(mapOf("userId" to "u-1", "accessToken" to "fresh-access", "refreshToken" to "refresh-2")),
+        ))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
+
+        val groups = FoodMindApiClient(api, tokenStore).groups()
+        val failed = server.takeRequest()
+        val refresh = server.takeRequest()
+        val retried = server.takeRequest()
+
+        assertTrue(groups.isEmpty())
+        assertEquals("Bearer expired-access", failed.getHeader("Authorization"))
+        assertEquals("/api/v1/auth/refresh", refresh.path)
+        assertEquals("Bearer fresh-access", retried.getHeader("Authorization"))
+        assertEquals("fresh-access", tokenStore.accessToken())
+        assertEquals("refresh-2", tokenStore.refreshToken())
     }
 
     @Test
@@ -166,6 +190,23 @@ class FoodMindNetworkTest {
     }
 
     @Test
+    fun referenceDataParsesObjectAndStringCollectionsFromContract() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(Gson().toJson(mapOf(
+            "cuisines" to listOf(mapOf("id" to "c-1", "code" to "THAI", "name" to "Thai")),
+            "dietaryTags" to emptyList<Any>(),
+            "allergens" to emptyList<Any>(),
+            "mealTypes" to listOf("BREAKFAST", "DINNER"),
+            "placeTypes" to listOf("CAFE", "HAWKER_STALL"),
+        ))))
+
+        val reference = FoodMindApiClient(api, tokenStore).referenceData()
+
+        assertEquals("THAI", reference.cuisines.single().code)
+        assertEquals(listOf("BREAKFAST", "DINNER"), reference.mealTypes)
+        assertEquals(listOf("CAFE", "HAWKER_STALL"), reference.placeTypes)
+    }
+
+    @Test
     fun groupFeedUsesCursorAndLimitContract() = runTest {
         tokenStore.saveAccessToken("test-token")
         server.enqueue(MockResponse().setResponseCode(200).setBody(
@@ -235,30 +276,28 @@ class FoodMindNetworkTest {
     }
 
     @Test
-    fun userRecipeCrudUsesOwnerScopedPathsAndIfMatchVersion() = runTest {
+    fun foodRecordCrudUsesContractPathsAndIfMatchVersion() = runTest {
         tokenStore.saveAccessToken("test-token")
-        val recipeJson = Gson().toJson(mapOf("id" to "recipe-1", "name" to "番茄意面", "servings" to 2, "version" to 0,
-            "ingredients" to listOf("番茄"), "steps" to listOf("煮面")))
+        val recordJson = Gson().toJson(mapOf("id" to "record-1", "mealNameSnapshot" to "番茄意面", "occurredAt" to "2026-08-01T12:00:00Z", "visibility" to "PRIVATE", "version" to 0))
         server.enqueue(
             MockResponse().setResponseCode(200).setBody(
-                Gson().toJson(mapOf("items" to listOf(mapOf("id" to "recipe-1", "name" to "番茄意面", "version" to 0))),),
+                Gson().toJson(mapOf("items" to listOf(mapOf("id" to "record-1", "mealNameSnapshot" to "番茄意面", "occurredAt" to "2026-08-01T12:00:00Z", "visibility" to "PRIVATE", "version" to 0))),),
             ),
         )
-        server.enqueue(MockResponse().setResponseCode(201).setBody(recipeJson))
-        server.enqueue(MockResponse().setResponseCode(200).setBody(recipeJson))
+        server.enqueue(MockResponse().setResponseCode(201).setBody(recordJson))
+        server.enqueue(MockResponse().setResponseCode(200).setBody(recordJson))
         server.enqueue(MockResponse().setResponseCode(204))
 
         val client = FoodMindApiClient(api, tokenStore)
-        assertEquals("recipe-1", client.recipes().items.single().id)
-        val draft = UserRecipeRequest("番茄意面", 2, ingredients = listOf("番茄"), steps = listOf("煮面"))
-        assertEquals("recipe-1", client.createRecipe(draft).id)
-        assertEquals("recipe-1", client.updateRecipe("recipe-1", 0, draft).id)
-        client.deleteRecipe("recipe-1")
+        assertEquals("record-1", client.foodRecords().items.single().id)
+        assertEquals("record-1", client.createFoodRecord(CreateFoodRecordRequest(mealNameSnapshot = "番茄意面", occurredAt = "2026-08-01T12:00:00Z")).id)
+        assertEquals("record-1", client.updateFoodRecord("record-1", 0, UpdateFoodRecordRequest(comment = "好吃")).id)
+        client.deleteFoodRecord("record-1")
 
-        assertEquals("/api/v1/recipes?page=0&size=100", server.takeRequest().path)
+        assertEquals("/api/v1/food-records?page=0&size=20&sort=occurredAt%2Cdesc", server.takeRequest().path)
         assertEquals("POST", server.takeRequest().method)
         val updateRequest = server.takeRequest()
-        assertEquals("PUT", updateRequest.method)
+        assertEquals("PATCH", updateRequest.method)
         assertEquals("\"0\"", updateRequest.getHeader("If-Match"))
         assertEquals("DELETE", server.takeRequest().method)
     }

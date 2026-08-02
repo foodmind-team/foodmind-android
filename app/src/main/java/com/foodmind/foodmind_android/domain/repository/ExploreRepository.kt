@@ -35,7 +35,7 @@ class ExploreRepositoryImpl(private val apiClient: FoodMindApiClient) : ExploreR
 private fun ExploreItemResponse.toDomain() = ExploreItem(
     id = sourceId ?: title.orEmpty(),
     sourceType = sourceType ?: "CURATED_PLACE",
-    title = title ?: "未命名内容",
+    title = title ?: "Untitled content",
     subtitle = subtitle.orEmpty(),
     snippet = snippet.orEmpty(),
 )

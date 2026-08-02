@@ -1,8 +1,11 @@
 package com.foodmind.foodmind_android.core.network
 
 import okhttp3.Interceptor
+import okhttp3.Authenticator
 import okhttp3.OkHttpClient
 import okhttp3.Response
+import okhttp3.Route
+import kotlinx.coroutines.runBlocking
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.UUID
@@ -12,18 +15,23 @@ interface SessionTokenStore {
     fun saveAccessToken(token: String)
     fun refreshToken(): String? = null
     fun saveRefreshToken(token: String) = Unit
+    fun userId(): String? = null
+    fun saveUserId(userId: String) = Unit
     fun clear()
 }
 
 class InMemorySessionTokenStore : SessionTokenStore {
     @Volatile private var token: String? = null
     @Volatile private var refresh: String? = null
+    @Volatile private var identity: String? = null
 
     override fun accessToken(): String? = token
     override fun saveAccessToken(token: String) { this.token = token }
     override fun refreshToken(): String? = refresh
     override fun saveRefreshToken(token: String) { refresh = token }
-    override fun clear() { token = null; refresh = null }
+    override fun userId(): String? = identity
+    override fun saveUserId(userId: String) { identity = userId }
+    override fun clear() { token = null; refresh = null; identity = null }
 }
 
 /** Process-scoped session boundary; persistent refresh-token storage is a separate security milestone. */
@@ -65,6 +73,7 @@ object FoodMindNetwork {
         val client = OkHttpClient.Builder()
             .addInterceptor(BearerTokenInterceptor(tokenStore))
             .addInterceptor(CorrelationIdInterceptor())
+            .authenticator(SessionAuthenticator(baseUrl, tokenStore))
             .build()
         return createApi(baseUrl, client)
     }
@@ -80,14 +89,59 @@ object FoodMindNetwork {
     }
 }
 
+private class SessionAuthenticator(
+    private val baseUrl: String,
+    private val tokenStore: SessionTokenStore,
+) : Authenticator {
+    private val lock = Any()
+
+    override fun authenticate(route: Route?, response: Response): okhttp3.Request? {
+        if (response.priorResponseCount() >= 2) return null
+        val refreshToken = tokenStore.refreshToken() ?: return null
+        return synchronized(lock) {
+            val currentAccess = tokenStore.accessToken()
+            val failedHeader = response.request.header("Authorization")
+            if (!currentAccess.isNullOrBlank() && failedHeader != "Bearer $currentAccess") {
+                return@synchronized response.request.newBuilder().header("Authorization", "Bearer $currentAccess").build()
+            }
+            val refreshApi = FoodMindNetwork.createApi(
+                baseUrl,
+                OkHttpClient.Builder().addInterceptor(CorrelationIdInterceptor()).build(),
+            )
+            val tokens = runCatching {
+                runBlocking { refreshApi.refresh(RefreshRequest(refreshToken, "ANDROID")) }
+            }.getOrElse {
+                tokenStore.clear()
+                return@synchronized null
+            }
+            tokenStore.saveAccessToken(tokens.accessToken)
+            tokens.refreshToken?.takeIf(String::isNotBlank)?.let(tokenStore::saveRefreshToken)
+            tokenStore.saveUserId(tokens.userId)
+            response.request.newBuilder().header("Authorization", "Bearer ${tokens.accessToken}").build()
+        }
+    }
+
+    private fun Response.priorResponseCount(): Int {
+        var count = 1
+        var current = priorResponse
+        while (current != null) { count++; current = current.priorResponse }
+        return count
+    }
+}
+
 class FoodMindApiClient(
     private val api: FoodMindApi,
     private val tokenStore: SessionTokenStore,
 ) {
+    suspend fun register(email: String, displayName: String, password: String, timeZone: String? = null): AuthTokenResponse {
+        val response = api.register(RegisterRequest(email, displayName, password, timeZone))
+        persist(response)
+        return response
+    }
+
     suspend fun login(email: String, password: String): AuthTokenResponse {
         val response = api.login(LoginRequest(email, password))
-        tokenStore.saveAccessToken(response.accessToken)
-        response.refreshToken?.takeIf { it.isNotBlank() }?.let(tokenStore::saveRefreshToken)
+        persist(response)
         return response
     }
 
@@ -95,56 +149,117 @@ class FoodMindApiClient(
         val refreshToken = tokenStore.refreshToken()
             ?: error("No refresh token available")
         val response = api.refresh(RefreshRequest(refreshToken = refreshToken, clientType = "ANDROID"))
-        tokenStore.saveAccessToken(response.accessToken)
-        response.refreshToken?.takeIf { it.isNotBlank() }?.let(tokenStore::saveRefreshToken)
+        persist(response)
         return response
     }
 
     suspend fun logout() {
         val refreshToken = tokenStore.refreshToken()
-        api.logout(refreshToken?.let { RefreshRequest(it, "ANDROID") })
-        tokenStore.clear()
+        try {
+            api.logout(refreshToken?.let { RefreshRequest(it, "ANDROID") })
+        } finally {
+            tokenStore.clear()
+        }
     }
 
     fun logoutLocal() = tokenStore.clear()
 
     suspend fun currentUser(): CurrentUserResponse = api.currentUser()
+    suspend fun updateCurrentUser(request: UpdateCurrentUserRequest) = api.updateCurrentUser(request)
+    suspend fun preferences() = api.preferences()
+    suspend fun replacePreferences(request: ReplacePreferencesRequest) = api.replacePreferences(request)
+    suspend fun referenceData() = api.referenceData()
+    suspend fun meal(id: String) = api.meal(id)
+    suspend fun place(id: String) = api.place(id)
+    suspend fun product(id: String) = api.product(id)
 
-    suspend fun recipes(): UserRecipePageResponse = api.recipes()
+    suspend fun logoutAll() {
+        try {
+            api.logoutAll()
+        } finally {
+            tokenStore.clear()
+        }
+    }
 
-    suspend fun recipe(id: String): UserRecipeResponse = api.recipe(id)
+    suspend fun history(from: String, to: String, period: String = "DAY", types: String? = null, groupId: String? = null, cursor: String? = null): HistoryResponse =
+        api.history(from = from, to = to, period = period, types = types, groupId = groupId, cursor = cursor)
 
-    suspend fun createRecipe(request: UserRecipeRequest): UserRecipeResponse = api.createRecipe(request)
-
-    suspend fun updateRecipe(id: String, version: Long, request: UserRecipeRequest): UserRecipeResponse =
-        api.updateRecipe(id, "\"$version\"", request)
-
-    suspend fun deleteRecipe(id: String) { api.deleteRecipe(id) }
-
-    suspend fun history(from: String, to: String): HistoryResponse = api.history(from = from, to = to)
+    suspend fun createFoodRecord(request: CreateFoodRecordRequest) = api.createFoodRecord(request)
+    suspend fun foodRecords(page: Int = 0) = api.foodRecords(page = page)
+    suspend fun foodRecord(id: String) = api.foodRecord(id)
+    suspend fun updateFoodRecord(id: String, version: Long, request: UpdateFoodRecordRequest) =
+        api.updateFoodRecord(id, "\"$version\"", request)
+    suspend fun deleteFoodRecord(id: String) = api.deleteFoodRecord(id)
+    suspend fun createDrinkRecord(request: CreateDrinkRecordRequest) = api.createDrinkRecord(request)
+    suspend fun drinkRecords(page: Int = 0) = api.drinkRecords(page = page)
+    suspend fun drinkRecord(id: String) = api.drinkRecord(id)
+    suspend fun updateDrinkRecord(id: String, version: Long, request: UpdateDrinkRecordRequest) =
+        api.updateDrinkRecord(id, "\"$version\"", request)
+    suspend fun deleteDrinkRecord(id: String) = api.deleteDrinkRecord(id)
 
     suspend fun explore(after: String? = null, topics: String? = null): ExplorePageResponse =
         api.explore(after = after, topics = topics)
 
+    suspend fun search(query: String, types: String? = null, after: String? = null) = api.search(query, types, after)
+    suspend fun saveWantToTry(sourceType: String, sourceId: String, note: String? = null) =
+        api.saveWantToTry(SaveWantToTryRequest(sourceType, sourceId, note))
+    suspend fun wantToTry(page: Int = 0) = api.wantToTry(page)
+    suspend fun deleteWantToTry(id: String) = api.deleteWantToTry(id)
+
     suspend fun groups(): List<GroupResponse> = api.groups()
+    suspend fun createGroup(name: String, description: String?) = api.createGroup(CreateGroupRequest(name, description))
+    suspend fun group(groupId: String) = api.group(groupId)
+    suspend fun updateGroup(groupId: String, request: UpdateGroupRequest) = api.updateGroup(groupId, request)
+    suspend fun createGroupInvitation(groupId: String, request: CreateInvitationRequest) = api.createGroupInvitation(groupId, request)
+    suspend fun joinGroup(token: String): GroupMemberResponse = try {
+        api.joinGroup(JoinGroupRequest(token))
+    } catch (failure: retrofit2.HttpException) {
+        if (failure.code() == 404) api.joinGroupLegacy(JoinGroupRequest(token)) else throw failure
+    }
+    suspend fun groupMembers(groupId: String) = api.groupMembers(groupId)
+    suspend fun removeGroupMember(groupId: String, userId: String) = api.removeGroupMember(groupId, userId)
 
     suspend fun groupFeed(groupId: String, after: String? = null): GroupFeedResponse =
         api.groupFeed(groupId = groupId, after = after)
+    suspend fun shareRecommendation(groupId: String, candidateId: String, message: String?) =
+        api.shareRecommendation(groupId, ShareRecommendationRequest(candidateId, message))
 
-    suspend fun dashboard(from: String, to: String): DashboardResponse = api.dashboard(from = from, to = to)
+    suspend fun dashboard(from: String, to: String, groupBy: String = "DAY", timeZone: String? = null): DashboardResponse = api.dashboard(from = from, to = to, groupBy = groupBy, timeZone = timeZone)
+    suspend fun weeklyRecap(weekStart: String) = api.weeklyRecap(weekStart)
 
     suspend fun createChatSession(title: String? = null): ChatSessionResponse =
         api.createChatSession(CreateChatSessionRequest(title))
+    suspend fun chatSessions(page: Int = 0) = api.chatSessions(page)
+    suspend fun chatSession(sessionId: String) = api.chatSession(sessionId)
+    suspend fun deleteChatSession(sessionId: String) = api.deleteChatSession(sessionId)
+    suspend fun shareChatReference(sessionId: String, sourceType: String, sourceId: String) =
+        api.shareChatReference(sessionId, ShareChatReferenceRequest(sourceType, sourceId))
 
-    suspend fun postChatMessage(sessionId: String, content: String): ChatMessageResponse =
-        api.postChatMessage(sessionId, PostChatMessageRequest(content))
+    suspend fun postChatMessage(sessionId: String, content: String, referenceIds: List<String>? = null): ChatMessageResponse =
+        api.postChatMessage(sessionId, PostChatMessageRequest(content, referenceIds))
 
     suspend fun chatMessages(sessionId: String, after: String? = null): ChatPageResponse<ChatMessageResponse> =
         api.chatMessages(sessionId, after)
 
     suspend fun generateRecommendation(request: GenerateRecommendationRequest): RecommendationResponse =
         api.generateRecommendation(UUID.randomUUID().toString(), request)
+    suspend fun recommendation(sessionId: String) = api.recommendation(sessionId)
+    suspend fun submitRecommendationFeedback(sessionId: String, request: RecommendationFeedbackRequest) =
+        api.submitRecommendationFeedback(sessionId, UUID.randomUUID().toString(), request)
+    suspend fun recommendationHistory(page: Int = 0) = api.recommendationHistory(page)
 
     suspend fun generateCookingPlan(request: GenerateCookingPlanRequest): CookingPlanResponse =
         api.generateCookingPlan(UUID.randomUUID().toString(), UUID.randomUUID().toString(), request)
+
+    suspend fun cookingPlan(planId: String) = api.cookingPlan(planId)
+    suspend fun cookingPlanHistory(page: Int = 0) = api.cookingPlanHistory(page)
+    suspend fun createMediaUpload(request: CreateMediaUploadRequest) = api.createMediaUpload(request)
+    suspend fun finaliseMediaUpload(mediaAssetId: String) = api.finaliseMediaUpload(mediaAssetId)
+    suspend fun deleteMediaAsset(mediaAssetId: String) = api.deleteMediaAsset(mediaAssetId)
+
+    private fun persist(response: AuthTokenResponse) {
+        tokenStore.saveAccessToken(response.accessToken)
+        response.refreshToken?.takeIf { it.isNotBlank() }?.let(tokenStore::saveRefreshToken)
+        tokenStore.saveUserId(response.userId)
+    }
 }

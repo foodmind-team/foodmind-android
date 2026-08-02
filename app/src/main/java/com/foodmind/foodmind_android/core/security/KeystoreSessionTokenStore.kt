@@ -43,6 +43,12 @@ class KeystoreSessionTokenStore(context: Context) : SessionTokenStore {
             .apply()
     }
 
+    override fun userId(): String? = preferences.getString(USER_ID, null)
+
+    override fun saveUserId(userId: String) {
+        preferences.edit().putString(USER_ID, userId).apply()
+    }
+
     override fun clear() {
         accessTokenValue = null
         preferences.edit().clear().apply()
@@ -75,5 +81,6 @@ class KeystoreSessionTokenStore(context: Context) : SessionTokenStore {
         const val PREFERENCES = "foodmind.session"
         const val REFRESH_CIPHERTEXT = "refresh_ciphertext"
         const val REFRESH_IV = "refresh_iv"
+        const val USER_ID = "user_id"
     }
 }

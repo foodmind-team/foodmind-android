@@ -17,11 +17,11 @@ class RecommendationRepositoryImpl(
         Recommendation(
             sessionId = response.sessionId,
             status = response.status,
-            title = candidate?.mealName ?: "暂时没有匹配的推荐",
-            meta = listOfNotNull(candidate?.placeName, candidate?.area).joinToString(" · ").ifBlank { "请稍后重试" },
+            title = candidate?.mealName ?: "No matching recommendations yet",
+            meta = listOfNotNull(candidate?.placeName, candidate?.area).joinToString(" · ").ifBlank { "Please try again later" },
             reason = candidate?.explanation
                 ?: candidate?.reasons?.firstOrNull()
-                ?: "系统会结合群组口味、距离、预算和今晚的约束。",
+                ?: "FoodMind combines group taste, distance, budget, and tonight’s constraints.",
         )
     }.recoverCatching { throwable ->
         throw when (throwable) {
