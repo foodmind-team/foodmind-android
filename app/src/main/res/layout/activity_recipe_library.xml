@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/foodmind_paper"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:gravity="center_vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp">
+        <Button
+            android:id="@+id/recipe_back"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:text="@string/back"
+            android:textAllCaps="false"
+            android:textColor="@color/foodmind_green_700" />
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/recipe_library_title"
+            android:textColor="@color/foodmind_ink"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+        <View android:layout_width="64dp" android:layout_height="1dp" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="32dp">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/recipe_library_support"
+                android:textColor="@color/foodmind_muted"
+                android:textSize="14sp" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="26dp"
+                android:text="@string/recipe_library_section"
+                android:textColor="@color/foodmind_ink"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+            <com.google.android.material.card.MaterialCardView
+                style="@style/FoodMind.RecipeCard"
+                android:layout_marginTop="12dp">
+                <CheckBox
+                    android:id="@+id/recipe_salmon"
+                    style="@style/FoodMind.RecipeCheckbox"
+                    android:text="@string/recipe_salmon" />
+            </com.google.android.material.card.MaterialCardView>
+            <com.google.android.material.card.MaterialCardView
+                style="@style/FoodMind.RecipeCard"
+                android:layout_marginTop="10dp">
+                <CheckBox
+                    android:id="@+id/recipe_noodle"
+                    style="@style/FoodMind.RecipeCheckbox"
+                    android:text="@string/recipe_noodle" />
+            </com.google.android.material.card.MaterialCardView>
+            <com.google.android.material.card.MaterialCardView
+                style="@style/FoodMind.RecipeCard"
+                android:layout_marginTop="10dp">
+                <CheckBox
+                    android:id="@+id/recipe_shakshuka"
+                    style="@style/FoodMind.RecipeCheckbox"
+                    android:text="@string/recipe_shakshuka" />
+            </com.google.android.material.card.MaterialCardView>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="@string/recipe_add_hint"
+                android:textColor="@color/foodmind_faint"
+                android:textSize="12sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:text="@string/fixture_status_title"
+                android:textColor="@color/foodmind_ink"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <RadioGroup
+                android:id="@+id/fixture_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <RadioButton
+                    android:id="@+id/fixture_ready"
+                    style="@style/FoodMind.FixtureRadio"
+                    android:checked="true"
+                    android:text="@string/fixture_ready" />
+                <RadioButton
+                    android:id="@+id/fixture_confirmation"
+                    style="@style/FoodMind.FixtureRadio"
+                    android:text="@string/fixture_confirmation" />
+                <RadioButton
+                    android:id="@+id/fixture_infeasible"
+                    style="@style/FoodMind.FixtureRadio"
+                    android:text="@string/fixture_infeasible" />
+                <RadioButton
+                    android:id="@+id/fixture_failed"
+                    style="@style/FoodMind.FixtureRadio"
+                    android:text="@string/fixture_failed" />
+            </RadioGroup>
+        </LinearLayout>
+    </ScrollView>
+
+    <Button
+        android:id="@+id/recipe_generate"
+        style="@style/FoodMind.PrimaryButton"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="20dp"
+        android:text="@string/recipe_generate_plan"
+        android:textAllCaps="false" />
+</LinearLayout>

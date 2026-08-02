@@ -251,4 +251,75 @@
         <item name="strokeWidth">1dp</item>
     </style>
 
+    <style name="FoodMind.PrimaryButton" parent="Widget.Material3.Button">
+        <item name="android:minHeight">56dp</item>
+        <item name="android:textColor">@color/foodmind_green_950</item>
+        <item name="backgroundTint">@color/foodmind_lime</item>
+        <item name="cornerRadius">16dp</item>
+    </style>
+
+    <style name="FoodMind.RecipeCard" parent="">
+        <item name="cardBackgroundColor">@color/white</item>
+        <item name="cardCornerRadius">18dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeColor">@color/foodmind_line</item>
+        <item name="strokeWidth">1dp</item>
+    </style>
+
+    <style name="FoodMind.RecipeCheckbox" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">76dp</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">14dp</item>
+        <item name="android:textColor">@color/foodmind_ink</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="FoodMind.PlanProgressCard" parent="">
+        <item name="cardBackgroundColor">@color/white</item>
+        <item name="cardCornerRadius">18dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeColor">@color/foodmind_line</item>
+        <item name="strokeWidth">1dp</item>
+    </style>
+
+    <style name="FoodMind.PlanTask" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">68dp</item>
+        <item name="android:paddingStart">10dp</item>
+        <item name="android:paddingEnd">10dp</item>
+        <item name="android:textColor">@color/foodmind_ink</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="FoodMind.SectionCard" parent="">
+        <item name="cardBackgroundColor">@color/white</item>
+        <item name="cardCornerRadius">18dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeColor">@color/foodmind_line</item>
+        <item name="strokeWidth">1dp</item>
+    </style>
+
+    <style name="FoodMind.SectionCardText" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">88dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:padding">18dp</item>
+        <item name="android:textColor">@color/foodmind_ink</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="FoodMind.FixtureRadio" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:textColor">@color/foodmind_muted</item>
+        <item name="android:textSize">11sp</item>
+    </style>
+
 </resources>
