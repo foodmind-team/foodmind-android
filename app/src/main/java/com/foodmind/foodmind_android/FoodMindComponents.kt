@@ -1,6 +1,7 @@
 package com.foodmind.foodmind_android
 
 import android.app.Activity
+import android.app.ActivityOptions
 import android.content.Context
 import android.content.Intent
 import androidx.activity.ComponentActivity
@@ -62,7 +63,13 @@ fun Context.openFoodMindRoot(destination: FoodMindRoot) {
         FoodMindRoot.ME -> ProfileActivity::class.java
     }
     if (this::class.java == target) return
-    startActivity(Intent(this, target).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+    val intent = Intent(this, target).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+    if (this is Activity) {
+        // Root destinations swap immediately so bottom navigation does not slide the whole window.
+        startActivity(intent, ActivityOptions.makeCustomAnimation(this, 0, 0).toBundle())
+    } else {
+        startActivity(intent)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
