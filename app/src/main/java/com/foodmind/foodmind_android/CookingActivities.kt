@@ -88,7 +88,7 @@ private fun ManualCookingScreen(client: FoodMindApiClient, onBack: () -> Unit, o
             }
             item { Text("Recent plans", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 8.dp)) }
             if (history.isEmpty()) item { Text("No plans yet.", color = FoodMindMuted) }
-            items(history, key = { it.planId.orEmpty() }) { plan -> Card(onClick = { plan.planId?.let(onOpenPlan) }, colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) { Column(Modifier.fillMaxWidth().padding(14.dp)) { Text("${plan.inputCount} ingredients · ${plan.stepCount} steps", fontWeight = FontWeight.Bold); Text("${plan.status} · ${plan.createdAt.orEmpty()}", color = FoodMindMuted, fontSize = 12.sp) } } }
+            items(history, key = { it.planId.orEmpty() }) { plan -> Card(onClick = { plan.planId?.let(onOpenPlan) }, colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) { Column(Modifier.fillMaxWidth().padding(14.dp)) { Text("${plan.inputCount} ingredients · ${plan.stepCount} steps", fontWeight = FontWeight.Bold); Text("${plan.status} · ${formatFoodMindTimestamp(plan.createdAt)}", color = FoodMindMuted, fontSize = 12.sp) } } }
         }
     }
 }

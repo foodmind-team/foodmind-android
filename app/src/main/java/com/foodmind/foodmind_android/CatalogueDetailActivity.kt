@@ -156,7 +156,7 @@ private suspend fun loadCatalogueDetail(client: FoodMindApiClient, type: String,
             description = record.comment,
             tags = listOf(record.visibility),
             facts = buildList {
-                add("Occurred at" to record.occurredAt)
+                add("Occurred at" to formatFoodMindTimestamp(record.occurredAt))
                 record.rating?.let { add("Rating" to it.toString()) }
                 record.price?.let { add("Spending" to "${it.amount} ${it.currency}") }
                 record.wouldEatAgain?.let { add("Would eat again" to if (it) "Yes" else "No") }

@@ -119,7 +119,7 @@ private fun RecordListCard(title: String, context: String?, occurredAt: String, 
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Text(title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
             Text(listOfNotNull(context, rating?.let { "Rating $it" }).joinToString(" · "), color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp))
-            Text(occurredAt, color = FoodMindMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
+            Text(formatFoodMindTimestamp(occurredAt), color = FoodMindMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
         }
     }
 }
@@ -155,7 +155,7 @@ private fun RecordEditorScreen(
     contentResolver: android.content.ContentResolver,
 ) {
     var seed by remember { mutableStateOf<RecordFormSeed?>(if (id == null) RecordFormSeed() else null) }
-    var name by remember { mutableStateOf("") }; var place by remember { mutableStateOf("") }; var occurredAt by remember { mutableStateOf(Instant.now().toString()) }
+    var name by remember { mutableStateOf("") }; var place by remember { mutableStateOf("") }; var occurredAt by remember { mutableStateOf(formatFoodMindTimestampForEditor(Instant.now().toString())) }
     var price by remember { mutableStateOf("") }; var currency by remember { mutableStateOf("SGD") }; var rating by remember { mutableStateOf("") }
     var comment by remember { mutableStateOf("") }; var visibility by remember { mutableStateOf("PRIVATE") }; var repeat by remember { mutableStateOf<Boolean?>(null) }
     var sweetness by remember { mutableStateOf("") }; var ice by remember { mutableStateOf("") }; var groupId by remember { mutableStateOf("") }
@@ -169,7 +169,7 @@ private fun RecordEditorScreen(
         if (id != null) runCatching {
             if (type == "DRINK") client.drinkRecord(id).let { RecordFormSeed(it.drinkName, it.shopNameSnapshot, it.occurredAt, it.price?.amount?.toString().orEmpty(), it.price?.currency ?: "SGD", it.rating?.toString().orEmpty(), it.comment.orEmpty(), it.visibility, it.wouldBuyAgain, it.sweetnessLevel?.toString().orEmpty(), it.iceLevel?.toString().orEmpty(), it.groupId.orEmpty(), it.mediaAssetId, it.version) }
             else client.foodRecord(id).let { RecordFormSeed(it.mealNameSnapshot, it.placeNameSnapshot.orEmpty(), it.occurredAt, it.price?.amount?.toString().orEmpty(), it.price?.currency ?: "SGD", it.rating?.toString().orEmpty(), it.comment.orEmpty(), it.visibility, it.wouldEatAgain, groupId = it.groupId.orEmpty(), mediaAssetId = it.mediaAssetId, version = it.version) }
-        }.onSuccess { loaded -> seed = loaded; name = loaded.name; place = loaded.place; occurredAt = loaded.occurredAt; price = loaded.price; currency = loaded.currency; rating = loaded.rating; comment = loaded.comment; visibility = loaded.visibility; repeat = loaded.repeat; sweetness = loaded.sweetness; ice = loaded.ice; groupId = loaded.groupId; mediaAssetId = loaded.mediaAssetId; originalMediaAssetId = loaded.mediaAssetId; version = loaded.version }
+        }.onSuccess { loaded -> seed = loaded; name = loaded.name; place = loaded.place; occurredAt = formatFoodMindTimestampForEditor(loaded.occurredAt); price = loaded.price; currency = loaded.currency; rating = loaded.rating; comment = loaded.comment; visibility = loaded.visibility; repeat = loaded.repeat; sweetness = loaded.sweetness; ice = loaded.ice; groupId = loaded.groupId; mediaAssetId = loaded.mediaAssetId; originalMediaAssetId = loaded.mediaAssetId; version = loaded.version }
             .onFailure { error = "Could not load records." }
     }
     FoodMindDetailScaffold(if (id == null) "Add record" else "Edit record", onBack) { padding ->
@@ -179,7 +179,7 @@ private fun RecordEditorScreen(
             item { Text(if (type == "DRINK") "Record a drink" else "Record a meal", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold); Text("Save to your current backend account.", color = FoodMindMuted) }
             item { OutlinedTextField(name, { name = it }, label = { Text(if (type == "DRINK") "DrinkName" else "MealName") }, modifier = Modifier.fillMaxWidth()) }
             item { OutlinedTextField(place, { place = it }, label = { Text(if (type == "DRINK") "Shop" else "Place") }, modifier = Modifier.fillMaxWidth()) }
-            item { OutlinedTextField(occurredAt, { occurredAt = it }, label = { Text("Occurred at（ISO 8601）") }, modifier = Modifier.fillMaxWidth()) }
+            item { OutlinedTextField(occurredAt, { occurredAt = it }, label = { Text("When (YYYY-MM-DD HH:MM)") }, supportingText = { Text("Your local time") }, modifier = Modifier.fillMaxWidth()) }
             item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(price, { price = it }, label = { Text("Price") }, modifier = Modifier.weight(1f)); OutlinedTextField(currency, { currency = it.uppercase().take(3) }, label = { Text("Currency") }, modifier = Modifier.weight(1f)) } }
             item { OutlinedTextField(rating, { rating = it }, label = { Text("Rating") }, modifier = Modifier.fillMaxWidth()) }
             if (type == "DRINK") item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(sweetness, { sweetness = it.filter(Char::isDigit) }, label = { Text("Sweetness") }, modifier = Modifier.weight(1f)); OutlinedTextField(ice, { ice = it.filter(Char::isDigit) }, label = { Text("Ice level") }, modifier = Modifier.weight(1f)) } }
@@ -195,17 +195,18 @@ private fun RecordEditorScreen(
                 Button(
                     onClick = { scope.launch {
                         if (name.isBlank()) { error = "Enter a name."; return@launch }
+                        val occurredAtIso = normaliseFoodMindTimestamp(occurredAt) ?: run { error = "Enter a valid local date and time."; return@launch }
                         saving = true; error = null
                         var newlyUploadedId: String? = null
                         runCatching {
                             val uploadedId = selectedImage?.let { MediaUploadRepository(client).upload(contentResolver, it).also { id -> newlyUploadedId = id } } ?: mediaAssetId
                             if (type == "DRINK") {
-                                val request = if (id == null) CreateDrinkRecordRequest(name.trim(), shopNameSnapshot = place.trim(), occurredAt = occurredAt.trim(), price = price.toDoubleOrNull(), currency = currency, rating = rating.toDoubleOrNull(), comment = comment.ifBlank { null }, sweetnessLevel = sweetness.toIntOrNull(), iceLevel = ice.toIntOrNull(), wouldBuyAgain = repeat, visibility = visibility, groupId = groupId.ifBlank { null }, mediaAssetId = uploadedId)
-                                else UpdateDrinkRecordRequest(drinkName = name.trim(), shopNameSnapshot = place.trim(), occurredAt = occurredAt.trim(), price = price.toDoubleOrNull(), currency = currency, rating = rating.toDoubleOrNull(), comment = comment.ifBlank { null }, sweetnessLevel = sweetness.toIntOrNull(), iceLevel = ice.toIntOrNull(), wouldBuyAgain = repeat, visibility = visibility, groupId = groupId.ifBlank { null }, mediaAssetId = uploadedId)
+                                val request = if (id == null) CreateDrinkRecordRequest(name.trim(), shopNameSnapshot = place.trim(), occurredAt = occurredAtIso, price = price.toDoubleOrNull(), currency = currency, rating = rating.toDoubleOrNull(), comment = comment.ifBlank { null }, sweetnessLevel = sweetness.toIntOrNull(), iceLevel = ice.toIntOrNull(), wouldBuyAgain = repeat, visibility = visibility, groupId = groupId.ifBlank { null }, mediaAssetId = uploadedId)
+                                else UpdateDrinkRecordRequest(drinkName = name.trim(), shopNameSnapshot = place.trim(), occurredAt = occurredAtIso, price = price.toDoubleOrNull(), currency = currency, rating = rating.toDoubleOrNull(), comment = comment.ifBlank { null }, sweetnessLevel = sweetness.toIntOrNull(), iceLevel = ice.toIntOrNull(), wouldBuyAgain = repeat, visibility = visibility, groupId = groupId.ifBlank { null }, mediaAssetId = uploadedId)
                                 if (id == null) client.createDrinkRecord(request as CreateDrinkRecordRequest) else client.updateDrinkRecord(id, version, request as UpdateDrinkRecordRequest)
                             } else {
-                                val request = if (id == null) CreateFoodRecordRequest(mealNameSnapshot = name.trim(), placeNameSnapshot = place.trim().ifBlank { null }, occurredAt = occurredAt.trim(), price = price.toDoubleOrNull(), currency = currency, rating = rating.toDoubleOrNull(), comment = comment.ifBlank { null }, wouldEatAgain = repeat, visibility = visibility, groupId = groupId.ifBlank { null }, mediaAssetId = uploadedId)
-                                else UpdateFoodRecordRequest(mealNameSnapshot = name.trim(), placeNameSnapshot = place.trim().ifBlank { null }, occurredAt = occurredAt.trim(), price = price.toDoubleOrNull(), currency = currency, rating = rating.toDoubleOrNull(), comment = comment.ifBlank { null }, wouldEatAgain = repeat, visibility = visibility, groupId = groupId.ifBlank { null }, mediaAssetId = uploadedId)
+                                val request = if (id == null) CreateFoodRecordRequest(mealNameSnapshot = name.trim(), placeNameSnapshot = place.trim().ifBlank { null }, occurredAt = occurredAtIso, price = price.toDoubleOrNull(), currency = currency, rating = rating.toDoubleOrNull(), comment = comment.ifBlank { null }, wouldEatAgain = repeat, visibility = visibility, groupId = groupId.ifBlank { null }, mediaAssetId = uploadedId)
+                                else UpdateFoodRecordRequest(mealNameSnapshot = name.trim(), placeNameSnapshot = place.trim().ifBlank { null }, occurredAt = occurredAtIso, price = price.toDoubleOrNull(), currency = currency, rating = rating.toDoubleOrNull(), comment = comment.ifBlank { null }, wouldEatAgain = repeat, visibility = visibility, groupId = groupId.ifBlank { null }, mediaAssetId = uploadedId)
                                 if (id == null) client.createFoodRecord(request as CreateFoodRecordRequest) else client.updateFoodRecord(id, version, request as UpdateFoodRecordRequest)
                             }
                             originalMediaAssetId?.takeIf { it != uploadedId }?.let { runCatching { client.deleteMediaAsset(it) } }
@@ -242,7 +243,7 @@ private fun RecordDetailScreen(client: FoodMindApiClient, type: String, id: Stri
         val data = seed
         if (data == null) Column(Modifier.padding(padding).padding(24.dp)) { if (error == null) CircularProgressIndicator() else Text(error!!, color = FoodMindCoral) }
         else LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            item { Text(data.name, fontSize = 29.sp, fontWeight = FontWeight.ExtraBold); Text(listOf(data.place, data.occurredAt).filter(String::isNotBlank).joinToString(" · "), color = FoodMindMuted) }
+            item { Text(data.name, fontSize = 29.sp, fontWeight = FontWeight.ExtraBold); Text(listOf(data.place, formatFoodMindTimestamp(data.occurredAt)).filter(String::isNotBlank).joinToString(" · "), color = FoodMindMuted) }
             item { FoodMindSurfaceCard { Column { listOf("Price" to listOf(data.price, data.currency).filter(String::isNotBlank).joinToString(" "), "Rating" to data.rating, "Visibility" to data.visibility, "Choose again" to when (data.repeat) { true -> "Yes"; false -> "No"; null -> "Not recorded" }).forEach { (label, value) -> Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) { Text(label, Modifier.weight(1f), color = FoodMindMuted); Text(value.ifBlank { "Not recorded" }, Modifier.weight(1f)) } } } } }
             if (data.comment.isNotBlank()) item { FoodMindSurfaceCard { Column { Text("Comment", fontWeight = FontWeight.Bold); Text(data.comment, Modifier.padding(top = 7.dp)) } } }
             if (data.mediaAssetId != null) item { Text("This record references an uploaded image asset: ${data.mediaAssetId}", color = FoodMindMuted, fontSize = 12.sp) }

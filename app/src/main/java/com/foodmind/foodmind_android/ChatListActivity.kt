@@ -63,7 +63,7 @@ private fun ChatListScreen(client: FoodMindApiClient, onBack: () -> Unit, onOpen
                     Card(onClick = { onOpen(session.id) }, colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
                         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                             FoodMindAvatar("F")
-                            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) { Text(session.title ?: "FoodMind Assistant", fontWeight = FontWeight.Bold); Text(session.updatedAt.orEmpty(), color = FoodMindMuted) }
+                            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) { Text(session.title ?: "FoodMind Assistant", fontWeight = FontWeight.Bold); Text(formatFoodMindTimestamp(session.updatedAt), color = FoodMindMuted) }
                             IconButton(onClick = { session.id?.let { id -> scope.launch { runCatching { client.deleteChatSession(id) }.onSuccess { sessions = sessions.filterNot { it.id == id } } } } }) { Icon(Icons.Outlined.DeleteOutline, "Archive") }
                         }
                     }

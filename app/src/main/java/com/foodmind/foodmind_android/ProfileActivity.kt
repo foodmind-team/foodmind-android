@@ -191,7 +191,7 @@ private fun ProfileScreen(
                             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
                                     Text("${item.returnedCandidateCount} candidates", fontWeight = FontWeight.Bold)
-                                    Text("${item.status ?: "Unknown"} · ${item.createdAt ?: ""}", color = FoodMindMuted, fontSize = 12.sp)
+                                    Text("${item.status ?: "Unknown"} · ${formatFoodMindTimestamp(item.createdAt)}", color = FoodMindMuted, fontSize = 12.sp)
                                 }
                                 Icon(Icons.Outlined.ChevronRight, null)
                             }

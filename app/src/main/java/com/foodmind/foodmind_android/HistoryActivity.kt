@@ -58,7 +58,7 @@ private fun HistoryScreen(client: FoodMindApiClient, onBack: () -> Unit, onOpen:
             if (!loading && entries.isEmpty() && error == null) item { FoodMindSurfaceCard { Text("No records in this date range.") } }
             items(entries, key = { "${it.sourceType}-${it.sourceId}" }) { entry ->
                 Card(onClick = { entry.sourceId?.let { onOpen(if (entry.sourceType == "DRINK") "DRINK" else "FOOD", it) } }, colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
-                    Column(Modifier.fillMaxWidth().padding(15.dp)) { Text(entry.title ?: "Untitled record", fontWeight = FontWeight.Bold, fontSize = 17.sp); Text(entry.context.orEmpty(), color = FoodMindMuted); Text("${entry.sourceType} · ${entry.occurredAt}", color = FoodMindMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp)) }
+                    Column(Modifier.fillMaxWidth().padding(15.dp)) { Text(entry.title ?: "Untitled record", fontWeight = FontWeight.Bold, fontSize = 17.sp); Text(entry.context.orEmpty(), color = FoodMindMuted); Text("${entry.sourceType} · ${formatFoodMindTimestamp(entry.occurredAt)}", color = FoodMindMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp)) }
                 }
             }
             cursor?.let { next -> item { TextButton(onClick = { scope.launch { runCatching { client.history(from, to, period, type, groupId.ifBlank { null }, next) }.onSuccess { page -> entries = entries + page.entries; cursor = page.nextCursor } } }, modifier = Modifier.fillMaxWidth()) { Text("Load more") } } }
