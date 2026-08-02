@@ -1,337 +1,267 @@
 package com.foodmind.foodmind_android
 
-import android.content.res.ColorStateList
+import android.content.Intent
 import android.os.Bundle
-import android.view.View
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.widget.NestedScrollView
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.button.MaterialButtonToggleGroup
+import androidx.activity.viewModels
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.foodmind.foodmind_android.core.network.FoodMindApiClient
+import com.foodmind.foodmind_android.core.network.FoodMindNetwork
+import com.foodmind.foodmind_android.core.network.FoodMindSession
+import com.foodmind.foodmind_android.domain.repository.RecommendationRepositoryImpl
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material.icons.outlined.Group
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Person
 
-class MainActivity : AppCompatActivity() {
-    private var mode = Mode.RECOMMEND
-    private var restaurantIndex = 0
-
-    private val restaurantResults by lazy {
-        listOf(
-            Result(
-                title = getString(R.string.result_restaurant_title),
-                meta = getString(R.string.result_restaurant_meta),
-                reason = getString(R.string.result_restaurant_reason),
-                match = getString(R.string.result_match),
-            ),
-            Result(
-                title = getString(R.string.result_restaurant_two_title),
-                meta = getString(R.string.result_restaurant_two_meta),
-                reason = getString(R.string.result_restaurant_two_reason),
-                match = getString(R.string.result_restaurant_two_match),
-            ),
-        )
-    }
+class MainActivity : ComponentActivity() {
+    private val viewModel: HomeViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContentView(R.layout.activity_main)
-
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { view, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            view.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
-        }
-
-        bindModeToggle()
-        bindGenerator()
-        bindNavigation()
-        bindSecondaryActions()
-        updateMode(Mode.RECOMMEND)
-    }
-
-    private fun bindModeToggle() {
-        findViewById<MaterialButtonToggleGroup>(R.id.mode_toggle)
-            .addOnButtonCheckedListener { _, checkedId, isChecked ->
-                if (!isChecked) return@addOnButtonCheckedListener
-                updateMode(
-                    if (checkedId == R.id.mode_cooking) Mode.COOKING else Mode.RECOMMEND,
+        FoodMindSession.initialize(this)
+        val apiClient = FoodMindApiClient(
+            FoodMindNetwork.createApi(BuildConfig.FOODMIND_API_BASE_URL, FoodMindSession.tokenStore),
+            FoodMindSession.tokenStore,
+        )
+        viewModel.setRecommendationRepository(
+            RecommendationRepositoryImpl(apiClient::generateRecommendation),
+        )
+        setContent {
+            FoodMindTheme {
+                val state by viewModel.state.collectAsStateWithLifecycle()
+                HomeScreen(
+                    state = state,
+                    onModeChange = viewModel::selectMode,
+                    onGenerate = {
+                        if (state.mode == HomeMode.COOKING) {
+                            startActivity(Intent(this, RecipeLibraryActivity::class.java))
+                        } else viewModel.generateRecommendation()
+                    },
+                    onTryAnother = viewModel::tryAnother,
+                    onNavigate = { destination -> navigate(destination) },
                 )
             }
+        }
     }
 
-    private fun bindGenerator() {
-        findViewById<MaterialButton>(R.id.generate_button).setOnClickListener {
-            runGenerator()
+    private fun navigate(destination: HomeDestination) {
+        when (destination) {
+            HomeDestination.HOME -> Unit
+            HomeDestination.GROUPS -> startActivity(SectionActivity.intent(this, SectionActivity.Section.GROUPS))
+            HomeDestination.EXPLORE -> startActivity(SectionActivity.intent(this, SectionActivity.Section.EXPLORE))
+            HomeDestination.SAVED -> startActivity(Intent(this, RecipeLibraryActivity::class.java))
+            HomeDestination.ME -> startActivity(SectionActivity.intent(this, SectionActivity.Section.PROFILE))
+            HomeDestination.HISTORY -> startActivity(Intent(this, HistoryActivity::class.java))
         }
-        findViewById<MaterialButton>(R.id.another_choice).setOnClickListener {
-            if (mode == Mode.RECOMMEND) {
-                restaurantIndex = (restaurantIndex + 1) % restaurantResults.size
+    }
+}
+
+private enum class HomeDestination { HOME, GROUPS, EXPLORE, SAVED, ME, HISTORY }
+
+@Composable
+private fun HomeScreen(
+    state: HomeUiState,
+    onModeChange: (HomeMode) -> Unit,
+    onGenerate: () -> Unit,
+    onTryAnother: () -> Unit,
+    onNavigate: (HomeDestination) -> Unit,
+) {
+    Scaffold(
+        containerColor = FoodMindPaper,
+        bottomBar = {
+            NavigationBar(modifier = Modifier.navigationBarsPadding(), containerColor = Color.White) {
+                listOf(
+                    HomeDestination.HOME to ("首页" to Icons.Outlined.Home),
+                    HomeDestination.GROUPS to ("群组" to Icons.Outlined.Group),
+                    HomeDestination.EXPLORE to ("发现" to Icons.Outlined.Explore),
+                    HomeDestination.SAVED to ("收藏" to Icons.Outlined.BookmarkBorder),
+                    HomeDestination.ME to ("我的" to Icons.Outlined.Person),
+                ).forEach { (destination, labelAndIcon) ->
+                    NavigationBarItem(
+                        selected = destination == HomeDestination.HOME,
+                        onClick = { onNavigate(destination) },
+                        icon = { Icon(labelAndIcon.second, contentDescription = labelAndIcon.first) },
+                        label = { Text(labelAndIcon.first) },
+                    )
+                }
             }
-            showResult()
-            toast(
-                if (mode == Mode.RECOMMEND) {
-                    R.string.fresh_group_option
-                } else {
-                    R.string.fresh_cooking_plan
-                },
-            )
-        }
-        findViewById<MaterialButton>(R.id.result_primary).setOnClickListener {
-            toast(
-                if (mode == Mode.RECOMMEND) {
-                    R.string.shared_with_group
-                } else {
-                    R.string.cooking_plan_started
-                },
-            )
-        }
-    }
-
-    private fun bindNavigation() {
-        findViewById<View>(R.id.navigation_home).setOnClickListener {
-            findViewById<NestedScrollView>(R.id.content_scroll).smoothScrollTo(0, 0)
-        }
-        findViewById<View>(R.id.navigation_groups).setOnClickListener {
-            scrollTo(R.id.group_card)
-        }
-        findViewById<View>(R.id.navigation_explore).setOnClickListener {
-            scrollTo(R.id.explore_section)
-        }
-        findViewById<View>(R.id.navigation_saved).setOnClickListener {
-            toast(R.string.saved_preview)
-        }
-        findViewById<View>(R.id.navigation_profile).setOnClickListener {
-            toast(R.string.profile_preview)
-        }
-    }
-
-    private fun bindSecondaryActions() {
-        findViewById<View>(R.id.edit_context).setOnClickListener {
-            toast(
-                if (mode == Mode.RECOMMEND) {
-                    R.string.edit_group_context
-                } else {
-                    R.string.edit_pantry_context
-                },
-            )
-        }
-        findViewById<View>(R.id.group_card).setOnClickListener {
-            toast(
-                if (mode == Mode.RECOMMEND) {
-                    R.string.group_preview
-                } else {
-                    R.string.pantry_preview
-                },
-            )
-        }
-        findViewById<View>(R.id.open_explore).setOnClickListener {
-            toast(R.string.explore_preview)
-        }
-        findViewById<View>(R.id.explore_post_one).setOnClickListener {
-            toast(R.string.post_one_preview)
-        }
-        findViewById<View>(R.id.explore_post_two).setOnClickListener {
-            toast(R.string.post_two_preview)
-        }
-    }
-
-    private fun runGenerator() {
-        val button = findViewById<MaterialButton>(R.id.generate_button)
-        button.isEnabled = false
-        button.text = getString(
-            if (mode == Mode.RECOMMEND) {
-                R.string.generating_recommendation
-            } else {
-                R.string.generating_cooking_plan
-            },
-        )
-        findViewById<View>(R.id.result_container).visibility = View.GONE
-
-        button.postDelayed({
-            button.isEnabled = true
-            button.text = getString(
-                if (mode == Mode.RECOMMEND) {
-                    R.string.generate_again
-                } else {
-                    R.string.regenerate_plan
-                },
-            )
-            showResult()
-        }, GENERATION_DELAY_MS)
-    }
-
-    private fun showResult() {
-        val result = if (mode == Mode.RECOMMEND) {
-            restaurantResults[restaurantIndex]
-        } else {
-            Result(
-                title = getString(R.string.result_cooking_title),
-                meta = getString(R.string.result_cooking_meta),
-                reason = getString(R.string.result_cooking_reason),
-                match = getString(R.string.result_cooking_match),
-            )
-        }
-
-        findViewById<TextView>(R.id.result_match).text = result.match
-        findViewById<TextView>(R.id.result_title).text = result.title
-        findViewById<TextView>(R.id.result_meta).text = result.meta
-        findViewById<TextView>(R.id.result_reason).text = result.reason
-        findViewById<MaterialButton>(R.id.result_primary).apply {
-            text = getString(
-                if (mode == Mode.RECOMMEND) {
-                    R.string.share_with_group
-                } else {
-                    R.string.start_cooking
-                },
-            )
-            setIconResource(
-                if (mode == Mode.RECOMMEND) R.drawable.ic_groups else R.drawable.ic_chef,
-            )
-        }
-        findViewById<View>(R.id.result_container).visibility = View.VISIBLE
-    }
-
-    private fun updateMode(nextMode: Mode) {
-        mode = nextMode
-        findViewById<View>(R.id.result_container).visibility = View.GONE
-
-        val isRecommend = mode == Mode.RECOMMEND
-        setText(
-            R.id.page_eyebrow,
-            if (isRecommend) R.string.recommend_eyebrow else R.string.cooking_eyebrow,
-        )
-        setText(
-            R.id.page_title,
-            if (isRecommend) R.string.recommend_page_title else R.string.cooking_page_title,
-        )
-        setText(
-            R.id.page_support,
-            if (isRecommend) R.string.recommend_page_support else R.string.cooking_page_support,
-        )
-        setText(
-            R.id.context_label,
-            if (isRecommend) R.string.recommending_for else R.string.planning_from,
-        )
-        setText(
-            R.id.context_value,
-            if (isRecommend) R.string.kitchen_table_context else R.string.pantry_context,
-        )
-        setText(
-            R.id.signal_title,
-            if (isRecommend) R.string.shared_ratings else R.string.pantry_expiry_signal,
-        )
-        setText(
-            R.id.signal_support,
-            if (isRecommend) R.string.enough_signal else R.string.pantry_expiry_support,
-        )
-        setText(
-            R.id.context_one,
-            if (isRecommend) R.string.context_time else R.string.cooking_context_time,
-        )
-        setText(
-            R.id.context_two,
-            if (isRecommend) R.string.context_range else R.string.cooking_context_serves,
-        )
-        setText(
-            R.id.context_three,
-            if (isRecommend) R.string.context_budget else R.string.cooking_context_spend,
-        )
-        setText(
-            R.id.context_four,
-            if (isRecommend) R.string.context_constraint else R.string.cooking_context_constraint,
-        )
-        setText(
-            R.id.generator_label,
-            if (isRecommend) R.string.foodmind_recommendation else R.string.foodmind_cooking_plan,
-        )
-        setText(
-            R.id.generator_title,
-            if (isRecommend) R.string.generator_recommend_title else R.string.generator_cooking_title,
-        )
-        setText(
-            R.id.generator_support,
-            if (isRecommend) R.string.generator_recommend_support else R.string.generator_cooking_support,
-        )
-        setText(
-            R.id.generator_hint,
-            if (isRecommend) R.string.generator_hint_recommend else R.string.generator_hint_cooking,
-        )
-        setText(
-            R.id.group_eyebrow,
-            if (isRecommend) R.string.core_group else R.string.pantry_snapshot,
-        )
-        setText(
-            R.id.group_title,
-            if (isRecommend) R.string.kitchen_table else R.string.twelve_items_ready,
-        )
-        setText(
-            R.id.group_support,
-            if (isRecommend) R.string.group_card_support else R.string.pantry_card_support,
-        )
-        setText(
-            R.id.group_signal_title,
-            if (isRecommend) R.string.strongest_signal else R.string.use_first,
-        )
-        setText(
-            R.id.group_signal_value,
-            if (isRecommend) R.string.strongest_signal_value else R.string.use_first_value,
-        )
-
-        findViewById<ImageView>(R.id.generator_icon).setImageResource(
-            if (isRecommend) R.drawable.ic_groups else R.drawable.ic_chef,
-        )
-        findViewById<MaterialButton>(R.id.generate_button).apply {
-            text = getString(
-                if (isRecommend) {
-                    R.string.generate_recommendation
-                } else {
-                    R.string.generate_cooking_plan
-                },
-            )
-            backgroundTintList = ColorStateList.valueOf(
-                ContextCompat.getColor(
-                    this@MainActivity,
-                    if (isRecommend) R.color.foodmind_coral else R.color.foodmind_lime,
-                ),
-            )
+        },
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("FoodMind", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = FoodMindGreenDark)
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(onClick = { onNavigate(HomeDestination.ME) }) {
+                        Icon(Icons.Outlined.Person, contentDescription = "打开我的页面", tint = FoodMindGreen)
+                    }
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = state.mode == HomeMode.RECOMMEND,
+                        onClick = { onModeChange(HomeMode.RECOMMEND) },
+                        label = { Text("外食与外卖") },
+                    )
+                    FilterChip(
+                        selected = state.mode == HomeMode.COOKING,
+                        onClick = { onModeChange(HomeMode.COOKING) },
+                        label = { Text("烹饪") },
+                    )
+                }
+                Text(
+                    if (state.mode == HomeMode.RECOMMEND) "晚餐，一起决定。" else "用手头的食材做饭。",
+                    modifier = Modifier.padding(top = 12.dp),
+                    fontSize = 31.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = FoodMindInk,
+                )
+                Text(
+                    if (state.mode == HomeMode.RECOMMEND) "只给出一个有理由的推荐，而不是再列一张长清单。"
+                    else "把当前食材、时间与偏好变成一个可执行的烹饪计划。",
+                    modifier = Modifier.padding(top = 6.dp),
+                    color = FoodMindMuted,
+                )
+            }
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = FoodMindGreenDark),
+                    border = BorderStroke(1.dp, FoodMindGreenDark),
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Text(
+                            if (state.mode == HomeMode.RECOMMEND) "为你和群组生成一个推荐" else "从我的菜谱生成烹饪计划",
+                            color = Color.White,
+                            fontSize = 21.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            if (state.mode == HomeMode.RECOMMEND) "结合群组口味、距离、预算和今晚的约束。"
+                            else "从已保存的菜谱开始，生成经资源和安全校验的时间线。",
+                            modifier = Modifier.padding(top = 8.dp),
+                            color = Color(0xFFDCEFE4),
+                        )
+                        Button(
+                            onClick = onGenerate,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 18.dp),
+                        ) { Text(if (state.mode == HomeMode.RECOMMEND) "生成推荐" else "开始选择菜谱") }
+                    }
+                }
+            }
+            if (state.hasResult) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, FoodMindLine),
+                    ) {
+                        Column(modifier = Modifier.padding(18.dp)) {
+                            Text("FoodMind 推荐", color = FoodMindGreen, fontWeight = FontWeight.Bold)
+                            Text(
+                                state.resultTitle,
+                                modifier = Modifier.padding(top = 8.dp),
+                                color = FoodMindInk,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(state.resultMeta, modifier = Modifier.padding(top = 6.dp), color = FoodMindMuted)
+                            Text(state.resultReason, modifier = Modifier.padding(top = 12.dp), color = FoodMindInk)
+                            OutlinedButton(onClick = onTryAnother, modifier = Modifier.padding(top = 14.dp)) {
+                                Text("换一个")
+                            }
+                        }
+                    }
+                }
+            }
+            if (state.isGenerating) {
+                item {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    Text("正在生成推荐…", modifier = Modifier.padding(top = 6.dp), color = FoodMindMuted)
+                }
+            }
+            state.errorMessage?.let { message ->
+                item {
+                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF1F0))) {
+                        Text(message, modifier = Modifier.padding(14.dp), color = Color(0xFFB42318))
+                    }
+                }
+            }
+            item {
+                Text("快捷入口", fontWeight = FontWeight.Bold, color = FoodMindInk)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    QuickCard("历史记录", "查看最近活动", Modifier.weight(1f), onClick = { onNavigate(HomeDestination.HISTORY) })
+                    QuickCard("我的菜谱", "管理已保存菜谱", Modifier.weight(1f), onClick = { onNavigate(HomeDestination.SAVED) })
+                }
+            }
         }
     }
+}
 
-    private fun setText(viewId: Int, stringId: Int) {
-        findViewById<TextView>(viewId).setText(stringId)
-    }
-
-    private fun scrollTo(viewId: Int) {
-        val scroll = findViewById<NestedScrollView>(R.id.content_scroll)
-        val target = findViewById<View>(viewId)
-        scroll.post {
-            scroll.smoothScrollTo(0, target.top)
+@Composable
+private fun QuickCard(title: String, support: String, modifier: Modifier, onClick: () -> Unit) {
+    Card(
+        modifier = modifier,
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, FoodMindLine),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(title, color = FoodMindInk, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(support, modifier = Modifier.padding(top = 4.dp), color = FoodMindMuted, fontSize = 11.sp)
         }
-    }
-
-    private fun toast(messageId: Int) {
-        Toast.makeText(this, messageId, Toast.LENGTH_SHORT).show()
-    }
-
-    private data class Result(
-        val title: String,
-        val meta: String,
-        val reason: String,
-        val match: String,
-    )
-
-    private enum class Mode {
-        RECOMMEND,
-        COOKING,
-    }
-
-    private companion object {
-        const val GENERATION_DELAY_MS = 850L
     }
 }

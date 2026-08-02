@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/foodmind_paper"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:gravity="center_vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp">
+        <Button
+            android:id="@+id/plan_back"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:text="@string/back"
+            android:textAllCaps="false"
+            android:textColor="@color/foodmind_green_700" />
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/cooking_plan_title"
+            android:textColor="@color/foodmind_ink"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+        <View android:layout_width="64dp" android:layout_height="1dp" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="32dp">
+            <TextView
+                android:id="@+id/plan_status_message"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/cooking_plan_ready"
+                android:textColor="@color/foodmind_green_700"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/plan_recipe_names"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="@color/foodmind_ink"
+                android:textSize="25sp"
+                android:textStyle="bold" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/cooking_plan_meta"
+                android:textColor="@color/foodmind_muted"
+                android:textSize="13sp" />
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/plan_progress_card"
+                style="@style/FoodMind.PlanProgressCard"
+                android:layout_marginTop="22dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+                    <TextView
+                        android:id="@+id/plan_progress_label"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/foodmind_ink"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+                    <ProgressBar
+                        android:id="@+id/plan_progress"
+                        style="@android:style/Widget.ProgressBar.Horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="8dp"
+                        android:layout_marginTop="12dp"
+                        android:max="100"
+                        android:progressTint="@color/foodmind_green_700"
+                        android:progressBackgroundTint="@color/foodmind_line_soft" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+            <TextView
+                android:id="@+id/plan_steps_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="26dp"
+                android:text="@string/plan_steps"
+                android:textColor="@color/foodmind_ink"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+            <CheckBox
+                android:id="@+id/plan_task_one"
+                style="@style/FoodMind.PlanTask"
+                android:layout_marginTop="12dp"
+                android:text="@string/plan_task_one" />
+            <CheckBox
+                android:id="@+id/plan_task_two"
+                style="@style/FoodMind.PlanTask"
+                android:text="@string/plan_task_two" />
+            <CheckBox
+                android:id="@+id/plan_task_three"
+                style="@style/FoodMind.PlanTask"
+                android:text="@string/plan_task_three" />
+            <CheckBox
+                android:id="@+id/plan_task_four"
+                style="@style/FoodMind.PlanTask"
+                android:text="@string/plan_task_four" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
