@@ -37,6 +37,16 @@ Use build variants or generated configuration for:
 - `staging`
 - `production-demo`
 
+Debug builds use the emulator host URL above. Release builds read the public
+API base URL (including the trailing `/api/v1/`) from either:
+
+```text
+FOODMIND_API_BASE_URL=https://approved-host.example/api/v1/
+```
+
+or the Gradle property `foodmind.apiBaseUrl`. The committed `.example` value is
+only a non-secret fail-safe and must be overridden for distributable builds.
+
 ## Run
 
 1. Start PostgreSQL and the Spring Boot backend.
