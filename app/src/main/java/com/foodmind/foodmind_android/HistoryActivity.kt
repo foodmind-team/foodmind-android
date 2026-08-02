@@ -3,7 +3,6 @@ package com.foodmind.foodmind_android
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.viewModels
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,123 +16,52 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
+import androidx.compose.ui.unit.sp
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
-import com.foodmind.foodmind_android.core.network.FoodMindNetwork
-import com.foodmind.foodmind_android.core.network.FoodMindSession
-import com.foodmind.foodmind_android.domain.repository.HistoryEntry
-import com.foodmind.foodmind_android.domain.repository.HistoryRepositoryImpl
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import com.foodmind.foodmind_android.core.network.HistoryEntryResponse
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
-
-data class HistoryUiState(
-    val isLoading: Boolean = true,
-    val entries: List<HistoryEntry> = emptyList(),
-    val errorMessage: String? = null,
-)
-
-class HistoryViewModel : ViewModel() {
-    private val _state = MutableStateFlow(HistoryUiState())
-    val state: StateFlow<HistoryUiState> = _state.asStateFlow()
-    private var repository: HistoryRepositoryImpl? = null
-
-    fun setRepository(repository: HistoryRepositoryImpl) {
-        this.repository = repository
-    }
-
-    fun load() {
-        val active = repository ?: run {
-            _state.update { it.copy(isLoading = false, errorMessage = "历史服务未配置") }
-            return
-        }
-        viewModelScope.launch {
-            val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-            val today = Calendar.getInstance()
-            val toCalendar = today.clone() as Calendar
-            toCalendar.add(Calendar.DAY_OF_YEAR, 1)
-            val fromCalendar = today.clone() as Calendar
-            fromCalendar.add(Calendar.DAY_OF_YEAR, -30)
-            val to = formatter.format(toCalendar.time)
-            val from = formatter.format(fromCalendar.time)
-            active.list(from, to)
-                .onSuccess { entries -> _state.value = HistoryUiState(isLoading = false, entries = entries) }
-                .onFailure { _state.value = HistoryUiState(isLoading = false, errorMessage = "历史记录加载失败，请稍后重试") }
-        }
-    }
-}
+import java.time.LocalDate
 
 class HistoryActivity : ComponentActivity() {
-    private val viewModel: HistoryViewModel by viewModels()
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        FoodMindSession.initialize(this)
-        val api = FoodMindApiClient(
-            FoodMindNetwork.createApi(BuildConfig.FOODMIND_API_BASE_URL, FoodMindSession.tokenStore),
-            FoodMindSession.tokenStore,
-        )
-        viewModel.setRepository(HistoryRepositoryImpl(api))
-        viewModel.load()
-        setContent {
-            FoodMindTheme {
-                val state by viewModel.state.collectAsStateWithLifecycle()
-                HistoryScreen(state = state, onBack = ::finish, onRetry = viewModel::load)
-            }
-        }
-    }
+    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); val client = foodMindApiClient(); setContent { FoodMindTheme { HistoryScreen(client, ::finish) { type, id -> startActivity(RecordDetailActivity.intent(this, type, id)) } } } }
 }
 
 @Composable
-private fun HistoryScreen(state: HistoryUiState, onBack: () -> Unit, onRetry: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedButton(onClick = onBack) { Text("返回") }
-            Text("历史记录", modifier = Modifier.padding(start = 12.dp), fontWeight = FontWeight.Bold)
-        }
-        when {
-            state.isLoading -> CircularProgressIndicator(modifier = Modifier.padding(24.dp))
-            state.errorMessage != null -> Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(state.errorMessage, color = Color(0xFFB42318))
-                OutlinedButton(onClick = onRetry) { Text("重试") }
-            }
-            state.entries.isEmpty() -> Text("近 30 天还没有记录。", modifier = Modifier.padding(24.dp), color = FoodMindMuted)
-            else -> LazyColumn(
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                items(state.entries, key = { it.id }) { entry ->
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        border = BorderStroke(1.dp, FoodMindLine),
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(entry.title, fontWeight = FontWeight.Bold, color = FoodMindInk)
-                            Text(entry.context, modifier = Modifier.padding(top = 5.dp), color = FoodMindMuted)
-                            Text("${entry.type} · ${entry.occurredAt}", modifier = Modifier.padding(top = 5.dp), color = FoodMindMuted)
-                        }
-                    }
+private fun HistoryScreen(client: FoodMindApiClient, onBack: () -> Unit, onOpen: (String, String) -> Unit) {
+    val today = remember { LocalDate.now() }; var from by remember { mutableStateOf(today.minusDays(30).toString()) }; var to by remember { mutableStateOf(today.plusDays(1).toString()) }; var type by remember { mutableStateOf<String?>(null) }; var period by remember { mutableStateOf("DAY") }; var groupId by remember { mutableStateOf("") }
+    var entries by remember { mutableStateOf<List<HistoryEntryResponse>>(emptyList()) }; var cursor by remember { mutableStateOf<String?>(null) }; var loading by remember { mutableStateOf(true) }; var error by remember { mutableStateOf<String?>(null) }; var refresh by remember { mutableStateOf(0) }; val scope = rememberCoroutineScope()
+    LaunchedEffect(from, to, type, period, groupId, refresh) { loading = true; runCatching { client.history(from, to, period, type, groupId.ifBlank { null }) }.onSuccess { entries = it.entries; cursor = it.nextCursor; error = null }.onFailure { error = "历史加载失败，请检查日期范围。" }; loading = false }
+    FoodMindDetailScaffold("历史记录", onBack) { padding ->
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item { Text("吃过与喝过", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold); Text("组合历史由后端按时区和筛选条件返回。", color = FoodMindMuted) }
+            item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(from, { from = it }, label = { Text("开始") }, modifier = Modifier.weight(1f)); OutlinedTextField(to, { to = it }, label = { Text("结束") }, modifier = Modifier.weight(1f)) } }
+            item { Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { listOf(null to "全部", "FOOD" to "餐食", "DRINK" to "饮品").forEach { (code, label) -> FilterChip(type == code, { type = code }, label = { Text(label) }) } } }
+            item { Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { listOf("DAY", "WEEK", "MONTH").forEach { FilterChip(period == it, { period = it }, label = { Text(it) }) } } }
+            item { OutlinedTextField(groupId, { groupId = it }, label = { Text("群组 ID（可选）") }, modifier = Modifier.fillMaxWidth()) }
+            if (loading) item { CircularProgressIndicator() }
+            error?.let { item { Text(it, color = FoodMindCoral); TextButton(onClick = { refresh++ }) { Text("重试") } } }
+            if (!loading && entries.isEmpty() && error == null) item { FoodMindSurfaceCard { Text("这个范围内还没有记录。") } }
+            items(entries, key = { "${it.sourceType}-${it.sourceId}" }) { entry ->
+                Card(onClick = { entry.sourceId?.let { onOpen(if (entry.sourceType == "DRINK") "DRINK" else "FOOD", it) } }, colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
+                    Column(Modifier.fillMaxWidth().padding(15.dp)) { Text(entry.title ?: "未命名记录", fontWeight = FontWeight.Bold, fontSize = 17.sp); Text(entry.context.orEmpty(), color = FoodMindMuted); Text("${entry.sourceType} · ${entry.occurredAt}", color = FoodMindMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp)) }
                 }
             }
+            cursor?.let { next -> item { TextButton(onClick = { scope.launch { runCatching { client.history(from, to, period, type, groupId.ifBlank { null }, next) }.onSuccess { page -> entries = entries + page.entries; cursor = page.nextCursor } } }, modifier = Modifier.fillMaxWidth()) { Text("加载更多") } } }
         }
     }
 }

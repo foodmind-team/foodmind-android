@@ -27,12 +27,6 @@
             android:name=".RecipeLibraryActivity"
             android:exported="false" />
         <activity
-            android:name=".CookingPlanActivity"
-            android:exported="false" />
-        <activity
-            android:name=".SectionActivity"
-            android:exported="false" />
-        <activity
             android:name=".LoginActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
@@ -59,6 +53,19 @@
             android:name=".ChatActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ChatListActivity" android:exported="false" />
+        <activity android:name=".SavedActivity" android:exported="false" />
+        <activity android:name=".ProfileActivity" android:exported="false" />
+        <activity android:name=".ProfileEditorActivity" android:exported="false" />
+        <activity android:name=".PreferencesActivity" android:exported="false" />
+        <activity android:name=".CatalogueDetailActivity" android:exported="false" />
+        <activity android:name=".RecordCollectionActivity" android:exported="false" />
+        <activity android:name=".RecordEditorActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".RecordDetailActivity" android:exported="false" />
+        <activity android:name=".GroupWorkspaceActivity" android:exported="false" />
+        <activity android:name=".ManualCookingActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".CookingPlanDetailActivity" android:exported="false" />
+        <activity android:name=".RecommendationDetailActivity" android:exported="false" />
     </application>
 
 </manifest>

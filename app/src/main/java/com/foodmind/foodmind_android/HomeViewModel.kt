@@ -48,7 +48,8 @@ class HomeViewModel : ViewModel() {
         _state.update { it.copy(mode = mode, hasResult = false, isGenerating = false, errorMessage = null, recommendation = null) }
     }
 
-    fun generateRecommendation() {
+    fun generateRecommendation(request: GenerateRecommendationRequest = lastRequest) {
+        lastRequest = request
         val repository = recommendationRepository
         if (repository == null) {
             _state.update { it.copy(isGenerating = false, hasResult = true, errorMessage = null) }
@@ -78,7 +79,7 @@ class HomeViewModel : ViewModel() {
         if (recommendationRepository == null) {
             _state.update { it.copy(resultIndex = it.resultIndex + 1, hasResult = true) }
         } else {
-            generateRecommendation()
+            generateRecommendation(lastRequest.copy(parentSessionId = _state.value.recommendation?.sessionId))
         }
     }
 }

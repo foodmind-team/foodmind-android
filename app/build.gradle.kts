@@ -3,6 +3,10 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val configuredApiBaseUrl = providers.environmentVariable("FOODMIND_API_BASE_URL")
+    .orElse(providers.gradleProperty("foodmind.apiBaseUrl"))
+    .orElse("https://api.foodmind.example/api/v1/")
+
 android {
     namespace = "com.foodmind.foodmind_android"
     // core-ktx 1.19.0 requires API 37 during AAR metadata validation.
@@ -21,6 +25,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
         compose = true
@@ -34,12 +39,13 @@ android {
             optimization {
                 enable = false
             }
-            buildConfigField("String", "FOODMIND_API_BASE_URL", "\"https://api.foodmind.example/api/v1/\"")
+            buildConfigField("String", "FOODMIND_API_BASE_URL", "\"${configuredApiBaseUrl.get()}\"")
         }
     }
 }
 
 dependencies {
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
     implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.constraintlayout)
@@ -60,6 +66,7 @@ dependencies {
     implementation(libs.retrofit.gson)
     implementation(libs.okhttp)
     implementation(libs.gson)
+    implementation(libs.coil.compose)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     implementation(libs.material)

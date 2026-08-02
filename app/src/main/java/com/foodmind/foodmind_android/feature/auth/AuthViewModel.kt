@@ -11,6 +11,8 @@ import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
 data class AuthUiState(
+    val registering: Boolean = false,
+    val displayName: String = "",
     val email: String = "",
     val password: String = "",
     val isLoading: Boolean = false,
@@ -28,6 +30,8 @@ class AuthViewModel : ViewModel() {
     }
 
     fun updateEmail(email: String) = _state.update { it.copy(email = email, errorMessage = null) }
+    fun updateDisplayName(displayName: String) = _state.update { it.copy(displayName = displayName, errorMessage = null) }
+    fun setRegistering(registering: Boolean) = _state.update { it.copy(registering = registering, errorMessage = null) }
 
     fun updatePassword(password: String) = _state.update { it.copy(password = password, errorMessage = null) }
 
@@ -47,10 +51,17 @@ class AuthViewModel : ViewModel() {
         }
         _state.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
-            runCatching { client.login(current.email.trim(), current.password) }
+            runCatching {
+                if (current.registering) {
+                    require(current.displayName.trim().isNotEmpty()) { "请输入显示名称" }
+                    client.register(current.email.trim(), current.displayName.trim(), current.password)
+                } else client.login(current.email.trim(), current.password)
+            }
                 .onSuccess { _state.update { it.copy(isLoading = false, isAuthenticated = true) } }
                 .onFailure { error ->
-                    val message = if (error is HttpException && error.code() == 401) {
+                    val message = if (error.message == "请输入显示名称") {
+                        error.message!!
+                    } else if (error is HttpException && error.code() == 401) {
                         "邮箱或密码不正确"
                     } else {
                         "登录失败，请稍后重试"

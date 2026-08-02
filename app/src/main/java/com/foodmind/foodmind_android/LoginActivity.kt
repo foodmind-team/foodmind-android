@@ -16,6 +16,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -40,10 +41,13 @@ class LoginActivity : ComponentActivity() {
         setContent {
             FoodMindTheme {
                 val state by viewModel.state.collectAsStateWithLifecycle()
+                LaunchedEffect(state.isAuthenticated) { if (state.isAuthenticated) { setResult(RESULT_OK); finish() } }
                 LoginScreen(
                     state = state,
                     onEmailChange = viewModel::updateEmail,
                     onPasswordChange = viewModel::updatePassword,
+                    onDisplayNameChange = viewModel::updateDisplayName,
+                    onModeChange = viewModel::setRegistering,
                     onLogin = viewModel::login,
                     onBack = ::finish,
                 )
@@ -57,6 +61,8 @@ private fun LoginScreen(
     state: AuthUiState,
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
+    onDisplayNameChange: (String) -> Unit,
+    onModeChange: (Boolean) -> Unit,
     onLogin: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -66,8 +72,15 @@ private fun LoginScreen(
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text("登录 FoodMind", color = FoodMindGreenDark)
+        Text(if (state.registering) "创建 FoodMind 账号" else "登录 FoodMind", color = FoodMindGreenDark)
         Text("登录后可生成推荐、烹饪计划并同步你的记录。", color = FoodMindMuted)
+        if (state.registering) OutlinedTextField(
+            value = state.displayName,
+            onValueChange = onDisplayNameChange,
+            label = { Text("显示名称") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
         OutlinedTextField(
             value = state.email,
             onValueChange = onEmailChange,
@@ -90,7 +103,10 @@ private fun LoginScreen(
             modifier = Modifier.fillMaxWidth(),
         ) {
             if (state.isLoading) CircularProgressIndicator()
-            else Text("登录")
+            else Text(if (state.registering) "注册并登录" else "登录")
+        }
+        OutlinedButton(onClick = { onModeChange(!state.registering) }, modifier = Modifier.fillMaxWidth()) {
+            Text(if (state.registering) "已有账号？去登录" else "没有账号？去注册")
         }
         OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("返回") }
     }
