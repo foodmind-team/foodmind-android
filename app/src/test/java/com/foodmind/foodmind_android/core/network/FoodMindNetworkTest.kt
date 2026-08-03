@@ -109,6 +109,99 @@ class FoodMindNetworkTest {
     }
 
     @Test
+    fun generateCookingPlanAsyncParses202AcceptedHandleAndSendsIdempotencyKey() = runTest {
+        tokenStore.saveAccessToken("test-token")
+        server.enqueue(MockResponse().setResponseCode(202).setBody(
+            Gson().toJson(mapOf(
+                "planId" to "plan-1",
+                "status" to "PROCESSING",
+                "taskId" to "task-1",
+                "location" to "/api/v1/cooking-plans/plan-1/task",
+            )),
+        ))
+
+        val response = FoodMindApiClient(api, tokenStore).generateCookingPlanAsync(
+            GenerateCookingPlanRequest(ingredients = listOf(CookingIngredientRequest("番茄", 2.0, "个"))),
+        )
+        val request = server.takeRequest()
+
+        assertEquals(202, response.code())
+        assertEquals("plan-1", response.body()?.planId)
+        assertEquals("task-1", response.body()?.taskId)
+        assertEquals("/api/v1/cooking-plans/plan-1/task", response.body()?.location)
+        assertEquals("/api/v1/cooking-plans/generate-async", request.path)
+        assertEquals("Bearer test-token", request.getHeader("Authorization"))
+        assertFalse(request.getHeader("Idempotency-Key").isNullOrBlank())
+        assertEquals("POST", request.method)
+    }
+
+    @Test
+    fun generateCookingPlanAsyncSurfaces200TerminalFailureAsAcceptedBody() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(
+            Gson().toJson(mapOf("planId" to "plan-1", "status" to "FAILED", "failureCode" to "TASK_SUBMIT_FAILED")),
+        ))
+
+        val response = FoodMindApiClient(api, tokenStore).generateCookingPlanAsync(GenerateCookingPlanRequest())
+
+        assertEquals(200, response.code())
+        assertEquals("plan-1", response.body()?.planId)
+        assertEquals("FAILED", response.body()?.status)
+        assertNull(response.body()?.taskId)
+    }
+
+    @Test
+    fun cookingPlanTaskParsesProgressAndDistinguishesTerminal404() = runTest {
+        tokenStore.saveAccessToken("test-token")
+        server.enqueue(MockResponse().setResponseCode(200).setBody(
+            Gson().toJson(mapOf(
+                "planId" to "plan-1",
+                "taskId" to "task-1",
+                "status" to "PROCESSING",
+                "syncState" to "POLLING",
+                "progress" to mapOf("node" to "solve_schedule", "completedSteps" to 7, "message" to "Solving schedule"),
+            )),
+        ))
+        server.enqueue(MockResponse().setResponseCode(404))
+
+        val client = FoodMindApiClient(api, tokenStore)
+        val running = client.cookingPlanTask("plan-1")
+        val missing = client.cookingPlanTask("plan-1")
+        val taskRequest = server.takeRequest()
+
+        assertEquals(200, running.code())
+        assertEquals("solve_schedule", running.body()?.progress?.node)
+        assertEquals(7, running.body()?.progress?.completedSteps)
+        assertEquals("POLLING", running.body()?.syncState)
+        assertEquals(404, missing.code())
+        assertEquals("/api/v1/cooking-plans/plan-1/task", taskRequest.path)
+        assertEquals("Bearer test-token", taskRequest.getHeader("Authorization"))
+    }
+
+    @Test
+    fun cancelCookingPlanTaskReturnsUpdatedPlanOn200And409OnConflict() = runTest {
+        tokenStore.saveAccessToken("test-token")
+        server.enqueue(MockResponse().setResponseCode(200).setBody(
+            Gson().toJson(mapOf("planId" to "plan-1", "status" to "FAILED", "failureCode" to "TASK_CANCELLED")),
+        ))
+        server.enqueue(MockResponse().setResponseCode(409))
+
+        val client = FoodMindApiClient(api, tokenStore)
+        val cancelled = client.cancelCookingPlanTask("plan-1")
+        val conflicted = client.cancelCookingPlanTask("plan-1")
+        val cancelRequest = server.takeRequest()
+        val conflictRequest = server.takeRequest()
+
+        assertEquals(200, cancelled.code())
+        assertEquals("TASK_CANCELLED", cancelled.body()?.failureCode)
+        assertEquals("FAILED", cancelled.body()?.status)
+        assertEquals(409, conflicted.code())
+        assertEquals("/api/v1/cooking-plans/plan-1/cancel", cancelRequest.path)
+        assertEquals("POST", cancelRequest.method)
+        assertEquals("/api/v1/cooking-plans/plan-1/cancel", conflictRequest.path)
+        assertEquals("Bearer test-token", conflictRequest.getHeader("Authorization"))
+    }
+
+    @Test
     fun recommendationParsesCandidatesAndUsesPublicApiPath() = runTest {
         tokenStore.saveAccessToken("test-token")
         server.enqueue(MockResponse().setResponseCode(201).setBody(

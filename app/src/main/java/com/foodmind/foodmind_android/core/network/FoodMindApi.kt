@@ -245,6 +245,21 @@ interface FoodMindApi {
     @GET("cooking-plans/history")
     suspend fun cookingPlanHistory(@Query("page") page: Int = 0, @Query("size") size: Int = 20): CookingPlanHistoryResponse
 
+    @POST("cooking-plans/generate-async")
+    suspend fun generateCookingPlanAsync(
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body request: GenerateCookingPlanRequest,
+    ): retrofit2.Response<CookingPlanAsyncAcceptedResponse>
+
+    @GET("cooking-plans/{planId}/task")
+    suspend fun cookingPlanTask(@Path("planId") planId: String): retrofit2.Response<CookingPlanTaskResponse>
+
+    @POST("cooking-plans/{planId}/cancel")
+    suspend fun cancelCookingPlanTask(
+        @Path("planId") planId: String,
+        @Body body: okhttp3.RequestBody,
+    ): retrofit2.Response<CookingPlanResponse>
+
     @POST("media/uploads")
     suspend fun createMediaUpload(@Body request: CreateMediaUploadRequest): MediaUploadInstructionResponse
 
