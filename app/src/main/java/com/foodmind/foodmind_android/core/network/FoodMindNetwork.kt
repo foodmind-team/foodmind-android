@@ -3,6 +3,7 @@ package com.foodmind.foodmind_android.core.network
 import okhttp3.Interceptor
 import okhttp3.Authenticator
 import okhttp3.OkHttpClient
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.Route
 import kotlinx.coroutines.runBlocking
@@ -250,6 +251,15 @@ class FoodMindApiClient(
 
     suspend fun generateCookingPlan(request: GenerateCookingPlanRequest): CookingPlanResponse =
         api.generateCookingPlan(UUID.randomUUID().toString(), UUID.randomUUID().toString(), request)
+
+    suspend fun generateCookingPlanAsync(request: GenerateCookingPlanRequest): retrofit2.Response<CookingPlanAsyncAcceptedResponse> =
+        api.generateCookingPlanAsync(UUID.randomUUID().toString(), request)
+
+    suspend fun cookingPlanTask(planId: String): retrofit2.Response<CookingPlanTaskResponse> =
+        api.cookingPlanTask(planId)
+
+    suspend fun cancelCookingPlanTask(planId: String): retrofit2.Response<CookingPlanResponse> =
+        api.cancelCookingPlanTask(planId, "{}".toRequestBody(null))
 
     suspend fun cookingPlan(planId: String) = api.cookingPlan(planId)
     suspend fun cookingPlanHistory(page: Int = 0) = api.cookingPlanHistory(page)

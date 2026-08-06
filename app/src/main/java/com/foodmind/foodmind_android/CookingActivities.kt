@@ -44,8 +44,11 @@ import androidx.compose.ui.unit.sp
 import com.foodmind.foodmind_android.core.network.CookingIngredientRequest
 import com.foodmind.foodmind_android.core.network.CookingPlanResponse
 import com.foodmind.foodmind_android.core.network.CookingPlanSummary
+import com.foodmind.foodmind_android.core.network.CookingPlanTaskResponse
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
 import com.foodmind.foodmind_android.core.network.GenerateCookingPlanRequest
+import com.foodmind.foodmind_android.domain.repository.AsyncSubmitResult
+import com.foodmind.foodmind_android.domain.repository.CookingPlanTaskRepository
 import kotlinx.coroutines.launch
 
 class ManualCookingActivity : ComponentActivity() {
@@ -61,8 +64,49 @@ private fun ManualCookingScreen(client: FoodMindApiClient, onBack: () -> Unit, o
     var ingredients by remember { mutableStateOf("") }; var servings by remember { mutableStateOf("2") }; var maxMinutes by remember { mutableStateOf("") }
     var budget by remember { mutableStateOf("") }; var currency by remember { mutableStateOf("SGD") }; var generating by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }; var history by remember { mutableStateOf<List<CookingPlanSummary>>(emptyList()) }
+    var asyncRunning by remember { mutableStateOf(false) }; var asyncPlanId by remember { mutableStateOf<String?>(null) }
+    var taskProgress by remember { mutableStateOf<CookingPlanTaskResponse?>(null) }; var asyncError by remember { mutableStateOf<String?>(null) }
+    var cancelling by remember { mutableStateOf(false) }; var asyncToken by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
+    val taskRepo = remember(client) {
+        CookingPlanTaskRepository(
+            submitAsync = { client.generateCookingPlanAsync(it) },
+            getTask = { client.cookingPlanTask(it) },
+            readPlan = { client.cookingPlan(it) },
+            cancelTask = { client.cancelCookingPlanTask(it) },
+        )
+    }
     LaunchedEffect(Unit) { runCatching { client.cookingPlanHistory().items }.onSuccess { history = it } }
+    LaunchedEffect(asyncToken) {
+        if (asyncToken == 0) return@LaunchedEffect
+        asyncRunning = true; asyncError = null; taskProgress = null; asyncPlanId = null
+        val lines = ingredients.lines().map(String::trim).filter(String::isNotBlank)
+        taskRepo.generateAsync(GenerateCookingPlanRequest(
+            ingredients = lines.map { CookingIngredientRequest(it, source = "MANUAL") },
+            servings = servings.toIntOrNull() ?: 2,
+            maxMinutes = maxMinutes.toIntOrNull(),
+            maxBudget = budget.toDoubleOrNull(),
+            currency = currency.takeIf { budget.isNotBlank() },
+        )).onSuccess { accepted ->
+            val planId = accepted.planId
+            if (accepted is AsyncSubmitResult.Accepted && planId != null) {
+                asyncPlanId = planId
+                taskRepo.pollUntilTerminal(planId, onProgress = { taskProgress = it })
+                    .onSuccess { plan ->
+                        when {
+                            plan.status == "FAILED" || plan.status == "NO_VALID_RECIPE" ->
+                                asyncError = "后台生成失败（${plan.failureCode ?: plan.status}）。请调整约束后重试。"
+                            else -> plan.planId?.let(onOpenPlan) ?: run { asyncError = "后台生成完成，但未返回计划 ID。" }
+                        }
+                    }
+                    .onFailure { asyncError = "后台生成未能在超时前完成，请稍后在计划详情中查看。" }
+            } else {
+                val failedStatus = (accepted as? AsyncSubmitResult.TerminalFailed)?.status ?: "未知"
+                asyncError = "后台提交失败（$failedStatus），请改用同步生成。"
+            }
+        }.onFailure { asyncError = "无法提交后台生成，请检查网络后重试。" }
+        asyncRunning = false
+    }
     FoodMindDetailScaffold("Manual ingredients", onBack) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item { Text("Cook with ingredients you know you have", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold); Text("Enter one ingredient per line, up to 30 lines. FoodMind does not infer your inventory.", color = FoodMindMuted) }
@@ -71,20 +115,53 @@ private fun ManualCookingScreen(client: FoodMindApiClient, onBack: () -> Unit, o
             item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(budget, { budget = it }, label = { Text("Extra budget") }, modifier = Modifier.weight(1f)); OutlinedTextField(currency, { currency = it.uppercase().take(3) }, label = { Text("Currency") }, modifier = Modifier.weight(1f)) } }
             item {
                 error?.let { Text(it, color = FoodMindCoral) }
-                Button(onClick = { scope.launch {
-                    val lines = ingredients.lines().map(String::trim).filter(String::isNotBlank)
-                    if (lines.isEmpty() || lines.size > 30) { error = "Enter 1–30 ingredients."; return@launch }
-                    generating = true; error = null
-                    runCatching { client.generateCookingPlan(GenerateCookingPlanRequest(
-                        ingredients = lines.map { CookingIngredientRequest(it, source = "MANUAL") },
-                        servings = servings.toIntOrNull() ?: 2,
-                        maxMinutes = maxMinutes.toIntOrNull(),
-                        maxBudget = budget.toDoubleOrNull(),
-                        currency = currency.takeIf { budget.isNotBlank() },
-                    )) }
-                        .onSuccess { plan -> plan.planId?.let(onOpenPlan) ?: run { error = "The backend did not return a plan ID." } }.onFailure { error = "Could not generate a cooking plan. Check your constraints and try again." }
-                    generating = false
-                } }, enabled = !generating, modifier = Modifier.fillMaxWidth()) { Text(if (generating) "Generating…" else "Generate cooking plan") }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { scope.launch {
+                        val lines = ingredients.lines().map(String::trim).filter(String::isNotBlank)
+                        if (lines.isEmpty() || lines.size > 30) { error = "Enter 1–30 ingredients."; return@launch }
+                        generating = true; error = null
+                        runCatching { client.generateCookingPlan(GenerateCookingPlanRequest(
+                            ingredients = lines.map { CookingIngredientRequest(it, source = "MANUAL") },
+                            servings = servings.toIntOrNull() ?: 2,
+                            maxMinutes = maxMinutes.toIntOrNull(),
+                            maxBudget = budget.toDoubleOrNull(),
+                            currency = currency.takeIf { budget.isNotBlank() },
+                        )) }
+                            .onSuccess { plan -> plan.planId?.let(onOpenPlan) ?: run { error = "The backend did not return a plan ID." } }.onFailure { error = "Could not generate a cooking plan. Check your constraints and try again." }
+                        generating = false
+                    } }, enabled = !generating, modifier = Modifier.fillMaxWidth()) { Text(if (generating) "Generating…" else "Generate cooking plan") }
+                    OutlinedButton(onClick = {
+                        val lines = ingredients.lines().map(String::trim).filter(String::isNotBlank)
+                        if (lines.isEmpty() || lines.size > 30) { error = "Enter 1–30 ingredients."; return@OutlinedButton }
+                        error = null; asyncToken++
+                    }, enabled = !generating && !asyncRunning, modifier = Modifier.fillMaxWidth()) { Text(if (asyncRunning) "Generating in background…" else "Generate in background") }
+                }
+            }
+            if (asyncRunning || taskProgress != null || asyncError != null) item {
+                FoodMindSurfaceCard {
+                    Column {
+                        Text("Background generation", fontWeight = FontWeight.Bold)
+                        taskProgress?.let { task ->
+                            task.progress?.let { progress ->
+                                Text(progress.node?.replace('_', ' ') ?: "Working", color = FoodMindGreen, fontWeight = FontWeight.Bold)
+                                Text("${progress.completedSteps} steps completed", color = FoodMindMuted)
+                                progress.message?.let { Text(it, color = FoodMindMuted, fontSize = 12.sp) }
+                            } ?: Text("Submitted — waiting for the first progress update…", color = FoodMindMuted)
+                        } ?: Text("Submitting…", color = FoodMindMuted)
+                        asyncPlanId?.let {
+                            OutlinedButton(onClick = {
+                                scope.launch {
+                                    cancelling = true
+                                    taskRepo.cancel(it)
+                                        .onSuccess { asyncError = "已取消后台生成。"; taskProgress = null; asyncPlanId = null }
+                                        .onFailure { asyncError = "取消失败：任务可能已完成（409），请刷新查看结果。" }
+                                    cancelling = false
+                                }
+                            }, enabled = !cancelling, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) { Text(if (cancelling) "Cancelling…" else "Cancel") }
+                        }
+                        asyncError?.let { Text(it, color = FoodMindCoral, modifier = Modifier.padding(top = 8.dp)) }
+                    }
+                }
             }
             item { Text("Recent plans", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 8.dp)) }
             if (history.isEmpty()) item { Text("No plans yet.", color = FoodMindMuted) }

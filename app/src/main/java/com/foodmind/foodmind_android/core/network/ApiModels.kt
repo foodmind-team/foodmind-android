@@ -597,6 +597,27 @@ data class CookingPlanHistoryResponse(
     val totalItems: Long = 0, val totalPages: Int = 0, val hasNext: Boolean = false,
 )
 
+data class CookingPlanAsyncAcceptedResponse(
+    val planId: String? = null,
+    val status: String? = null,
+    val taskId: String? = null,
+    val location: String? = null,
+)
+
+data class CookingPlanTaskProgressResponse(
+    val node: String? = null,
+    val completedSteps: Int = 0,
+    val message: String? = null,
+)
+
+data class CookingPlanTaskResponse(
+    val planId: String? = null,
+    val taskId: String? = null,
+    val status: String? = null,
+    val syncState: String? = null,
+    val progress: CookingPlanTaskProgressResponse? = null,
+)
+
 data class CreateMediaUploadRequest(val contentType: String, val byteSize: Long, val checksumSha256: String)
 data class MediaUploadInstructionResponse(
     val mediaAssetId: String = "", val status: String = "", val uploadUrl: String = "",
