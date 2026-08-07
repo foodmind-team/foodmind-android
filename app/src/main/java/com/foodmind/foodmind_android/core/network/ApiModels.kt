@@ -482,6 +482,10 @@ data class RecommendationResponse(
     val fallbackStatus: String? = null,
     val items: List<RecommendationCandidateResponse> = emptyList(),
     val candidates: List<RecommendationCandidateResponse> = emptyList(),
+    val modelVersion: String? = null,
+    val fallbackVersion: String? = null,
+    val createdAt: String? = null,
+    val completedAt: String? = null,
 )
 
 data class RecommendationCandidateResponse(
@@ -542,6 +546,9 @@ data class GenerateCookingPlanRequest(
     val currency: String? = null,
     val requiredDietaryTagCodes: List<String> = emptyList(),
     val avoidAllergenCodes: List<String> = emptyList(),
+    val recipeIds: List<String>? = null,
+    val servingAt: String? = null,
+    val region: String? = null,
 )
 
 data class CookingPlanResponse(
@@ -559,6 +566,118 @@ data class CookingPlanResponse(
     val ingredients: List<CookingIngredientResponse> = emptyList(),
     val steps: List<CookingStepResponse> = emptyList(),
     val warnings: List<CookingPlanWarningResponse> = emptyList(),
+    val planRevision: String? = null,
+    val region: String? = null,
+    val solverStatus: String? = null,
+    val makespanMinutes: Int? = null,
+    val errorCode: String? = null,
+    val errorMessage: String? = null,
+    val sources: List<CookingPlanSourceResponse> = emptyList(),
+    val timeline: List<CookingPlanTimelineTaskResponse> = emptyList(),
+    val miseEnPlace: List<CookingPlanMiseEnPlaceResponse> = emptyList(),
+    val dishCompletions: List<CookingPlanDishCompletionResponse> = emptyList(),
+    val completionChecklist: List<CookingPlanCompletionItemResponse> = emptyList(),
+    val assumptions: List<CookingPlanAssumptionResponse> = emptyList(),
+    val repairOptions: List<CookingPlanRepairOptionResponse> = emptyList(),
+    val questions: List<String> = emptyList(),
+    val confirmationQuestions: List<CookingPlanConfirmationQuestionResponse> = emptyList(),
+    val decisions: List<CookingPlanDecisionResponse> = emptyList(),
+    val reasons: List<String> = emptyList(),
+    val safeAlternatives: List<String> = emptyList(),
+    val explanation: String? = null,
+    val explanationSource: String? = null,
+)
+
+data class CookingPlanSourceResponse(
+    val sequenceNo: Int? = null,
+    val sourceType: String? = null,
+    val sourceId: String? = null,
+    val targetServings: Double? = null,
+    val dishName: String? = null,
+)
+
+data class CookingPlanTimelineTaskResponse(
+    val taskId: String? = null,
+    val startMinute: Int? = null,
+    val endMinute: Int? = null,
+    val durationMinutes: Int? = null,
+    val instruction: String? = null,
+    val dishId: String? = null,
+    val workMode: String? = null,
+    val category: String? = null,
+    val heatLevel: String? = null,
+    val resources: List<String> = emptyList(),
+)
+
+data class CookingPlanMiseEnPlaceResponse(
+    val sequenceNo: Int? = null,
+    val instruction: String? = null,
+    val ingredient: String? = null,
+    val operation: String? = null,
+    val durationMinutes: Int? = null,
+    val whenNeeded: String? = null,
+)
+
+data class CookingPlanDishCompletionResponse(
+    val dishId: String? = null,
+    val completionMinute: Int? = null,
+    val taskCount: Int? = null,
+    val isShared: Boolean = false,
+)
+
+data class CookingPlanLotAllocationResponse(
+    val inventoryLotId: String? = null,
+    val quantity: Double? = null,
+    val unit: String? = null,
+)
+
+data class CookingPlanCompletionItemResponse(
+    val completionItemId: String? = null,
+    val ingredientName: String? = null,
+    val recipeIds: List<String> = emptyList(),
+    val allocations: List<CookingPlanLotAllocationResponse> = emptyList(),
+)
+
+data class CookingPlanAssumptionResponse(
+    val text: String? = null,
+    val confidence: Double? = null,
+    val sourceType: String? = null,
+)
+
+data class CookingPlanRepairOptionResponse(
+    val optionId: String? = null,
+    val optionType: String? = null,
+    val description: String? = null,
+    val changes: List<String> = emptyList(),
+    val effects: List<String> = emptyList(),
+)
+
+data class CookingPlanQuestionOptionResponse(
+    val value: String? = null,
+    val label: String? = null,
+    val suggested: Boolean = false,
+)
+
+data class CookingPlanConfirmationQuestionResponse(
+    val questionId: String? = null,
+    val fieldPath: String? = null,
+    val prompt: String? = null,
+    val responseType: String? = null,
+    val options: List<CookingPlanQuestionOptionResponse> = emptyList(),
+    val required: Boolean = true,
+    val suggestedValue: String? = null,
+)
+
+data class CookingPlanDecisionResponse(
+    val optionId: String? = null,
+    val optionType: String? = null,
+    val payload: Map<String, Any?> = emptyMap(),
+    val planRevision: String? = null,
+)
+
+data class CookingQuestionAnswer(
+    val questionId: String,
+    val value: String,
 )
 
 data class CookingStepResponse(

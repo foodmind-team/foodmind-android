@@ -133,14 +133,15 @@ private fun HomeScreen(
         runCatching { client.groups() }.onSuccess { groups = it }
         runCatching { client.preferences() }.onSuccess { p -> preferences = p; budget = p.budgetMax?.toString().orEmpty(); currency = p.currency ?: "SGD"; area = p.preferredArea.orEmpty(); mealType = p.preferredMealTypes.firstOrNull() ?: "DINNER" }
     }
-    val request = GenerateRecommendationRequest(
-        groupId = groupId.ifBlank { null }, mealType = mealType, maxBudget = budget.toDoubleOrNull(), currency = currency,
-        area = area.ifBlank { null }, mood = mood.ifBlank { null }, requestedFor = Instant.now().plus(1, ChronoUnit.HOURS).toString(),
-        maxDistanceKm = preferences?.maxDistanceKm,
-        constraints = RecommendationConstraintsRequest(
-            avoidAllergenCodes = preferences?.allergens?.map { it.code }, requiredDietaryTagCodes = preferences?.dietaryTagCodes,
-            maxSpiceLevel = preferences?.spiceTolerance, minimumCleanlinessEvidenceScore = preferences?.minimumCleanlinessEvidenceScore,
-        ),
+    val request = buildHomeRecommendationRequest(
+        groupId = groupId,
+        mealType = mealType,
+        budget = budget,
+        currency = currency,
+        area = area,
+        mood = mood,
+        preferences = preferences,
+        requestedFor = Instant.now().plus(1, ChronoUnit.HOURS).toString(),
     )
     FoodMindRootScaffold(
         FoodMindRoot.HOME, "FoodMind", onNavigate,
@@ -202,6 +203,37 @@ private fun HomeScreen(
             item { HomeQuick("FoodMind Assistant", "Continue with authorised sources", Icons.Outlined.ChatBubbleOutline, Modifier.fillMaxWidth(), onChat) }
         }
     }
+}
+
+internal fun buildHomeRecommendationRequest(
+    groupId: String,
+    mealType: String,
+    budget: String,
+    currency: String,
+    area: String,
+    mood: String,
+    preferences: UserPreferencesResponse?,
+    requestedFor: String,
+): GenerateRecommendationRequest {
+    val maxBudget = budget.toDoubleOrNull()
+    return GenerateRecommendationRequest(
+        groupId = groupId.ifBlank { null },
+        mealType = mealType,
+        maxBudget = maxBudget,
+        currency = currency.takeIf { maxBudget != null },
+        area = area.ifBlank { null },
+        latitude = preferences?.preferredLatitude,
+        longitude = preferences?.preferredLongitude,
+        maxDistanceKm = preferences?.maxDistanceKm,
+        mood = mood.ifBlank { null },
+        requestedFor = requestedFor,
+        constraints = RecommendationConstraintsRequest(
+            avoidAllergenCodes = preferences?.allergens?.map { it.code },
+            requiredDietaryTagCodes = preferences?.dietaryTagCodes,
+            maxSpiceLevel = preferences?.spiceTolerance,
+            minimumCleanlinessEvidenceScore = preferences?.minimumCleanlinessEvidenceScore,
+        ),
+    )
 }
 
 @Composable
