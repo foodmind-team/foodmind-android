@@ -138,7 +138,7 @@ class FoodMindNetworkTest {
     @Test
     fun generateCookingPlanAsyncSurfaces200TerminalFailureAsAcceptedBody() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(
-            Gson().toJson(mapOf("planId" to "plan-1", "status" to "FAILED", "failureCode" to "TASK_SUBMIT_FAILED")),
+            Gson().toJson(mapOf("planId" to "plan-1", "status" to "FAILED", "errorCode" to "TASK_SUBMIT_FAILED")),
         ))
 
         val response = FoodMindApiClient(api, tokenStore).generateCookingPlanAsync(GenerateCookingPlanRequest())
@@ -181,7 +181,7 @@ class FoodMindNetworkTest {
     fun cancelCookingPlanTaskReturnsUpdatedPlanOn200And409OnConflict() = runTest {
         tokenStore.saveAccessToken("test-token")
         server.enqueue(MockResponse().setResponseCode(200).setBody(
-            Gson().toJson(mapOf("planId" to "plan-1", "status" to "FAILED", "failureCode" to "TASK_CANCELLED")),
+            Gson().toJson(mapOf("planId" to "plan-1", "status" to "FAILED", "errorCode" to "TASK_CANCELLED")),
         ))
         server.enqueue(MockResponse().setResponseCode(409))
 
@@ -192,7 +192,7 @@ class FoodMindNetworkTest {
         val conflictRequest = server.takeRequest()
 
         assertEquals(200, cancelled.code())
-        assertEquals("TASK_CANCELLED", cancelled.body()?.failureCode)
+        assertEquals("TASK_CANCELLED", cancelled.body()?.errorCode)
         assertEquals("FAILED", cancelled.body()?.status)
         assertEquals(409, conflicted.code())
         assertEquals("/api/v1/cooking-plans/plan-1/cancel", cancelRequest.path)
