@@ -33,13 +33,13 @@ class MainActivitySmokeTest {
     @Test
     fun homeRendersAndCookingModeKeepsRecipeManagementInMyRecipes() {
         composeRule.onNodeWithText("FoodMind").assertIsDisplayed()
-        composeRule.onNodeWithText("烹饪").performClick()
-        composeRule.onNodeWithText("从本地菜谱开始").assertIsDisplayed()
-        composeRule.onAllNodesWithText("添加菜谱").assertCountEquals(0)
+        composeRule.onNodeWithText("Cooking").performClick()
+        composeRule.onNodeWithText("Start from local recipes").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Add recipe").assertCountEquals(0)
     }
 
     @Test
     fun recommendationModeShowsPrimaryAction() {
-        composeRule.onNodeWithText("生成推荐").assertIsDisplayed()
+        composeRule.onNodeWithText("Generate recommendations").assertIsDisplayed()
     }
 }
