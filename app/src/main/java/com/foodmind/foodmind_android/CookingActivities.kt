@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -26,6 +27,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,15 +40,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.foodmind.foodmind_android.core.network.CookingConfirmationQuestionResponse
 import com.foodmind.foodmind_android.core.network.CookingIngredientRequest
 import com.foodmind.foodmind_android.core.network.CookingPlanResponse
 import com.foodmind.foodmind_android.core.network.CookingPlanSummary
 import com.foodmind.foodmind_android.core.network.CookingPlanTaskResponse
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
 import com.foodmind.foodmind_android.core.network.GenerateCookingPlanRequest
+import com.foodmind.foodmind_android.core.network.QuestionAnswerRequest
 import com.foodmind.foodmind_android.domain.repository.AsyncSubmitResult
 import com.foodmind.foodmind_android.domain.repository.CookingPlanTaskRepository
 import kotlinx.coroutines.launch
@@ -95,7 +100,7 @@ private fun ManualCookingScreen(client: FoodMindApiClient, onBack: () -> Unit, o
                     .onSuccess { plan ->
                         when {
                             plan.status == "FAILED" || plan.status == "NO_VALID_RECIPE" ->
-                                asyncError = "后台生成失败（${plan.failureCode ?: plan.status}）。请调整约束后重试。"
+                                asyncError = "后台生成失败（${plan.errorCode ?: plan.status}）。请调整约束后重试。"
                             else -> plan.planId?.let(onOpenPlan) ?: run { asyncError = "后台生成完成，但未返回计划 ID。" }
                         }
                     }
@@ -165,7 +170,7 @@ private fun ManualCookingScreen(client: FoodMindApiClient, onBack: () -> Unit, o
             }
             item { Text("Recent plans", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 8.dp)) }
             if (history.isEmpty()) item { Text("No plans yet.", color = FoodMindMuted) }
-            items(history, key = { it.planId.orEmpty() }) { plan -> Card(onClick = { plan.planId?.let(onOpenPlan) }, colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) { Column(Modifier.fillMaxWidth().padding(14.dp)) { Text("${plan.inputCount} ingredients · ${plan.stepCount} steps", fontWeight = FontWeight.Bold); Text("${plan.status} · ${formatFoodMindTimestamp(plan.createdAt)}", color = FoodMindMuted, fontSize = 12.sp) } } }
+            items(history, key = { it.planId.orEmpty() }) { plan -> Card(onClick = { plan.planId?.let(onOpenPlan) }, colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) { Column(Modifier.fillMaxWidth().padding(14.dp)) { Text("${plan.sourceCount} sources · ${plan.taskCount} tasks${plan.makespanMinutes?.let { " · $it min" } ?: ""}", fontWeight = FontWeight.Bold); Text("${plan.status} · ${formatFoodMindTimestamp(plan.createdAt)}", color = FoodMindMuted, fontSize = 12.sp) } } }
         }
     }
 }
@@ -181,26 +186,181 @@ class CookingPlanDetailActivity : ComponentActivity() {
 
 @Composable
 private fun CookingPlanDetailScreen(client: FoodMindApiClient, planId: String, onBack: () -> Unit) {
-    var plan by remember { mutableStateOf<CookingPlanResponse?>(null) }; var error by remember { mutableStateOf<String?>(null) }; var completed by remember { mutableStateOf(setOf<Int>()) }; var refresh by remember { mutableStateOf(0) }
-    LaunchedEffect(planId, refresh) { runCatching { client.cookingPlan(planId) }.onSuccess { plan = it; error = null }.onFailure { error = "Could not load the plan." } }
+    var plan by remember { mutableStateOf<CookingPlanResponse?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var completed by remember { mutableStateOf(setOf<String>()) }
+    var refresh by remember { mutableStateOf(0) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(planId, refresh) {
+        runCatching { client.cookingPlan(planId) }
+            .onSuccess { plan = it; error = null }
+            .onFailure { error = "Could not load the plan." }
+    }
     FoodMindDetailScaffold("Cooking plan", onBack) { padding ->
         val value = plan
         when {
             value == null && error == null -> CircularProgressIndicator(Modifier.padding(padding).padding(24.dp))
-            value == null -> Column(Modifier.padding(padding).padding(24.dp)) { Text(error.orEmpty(), color = FoodMindCoral); TextButton(onClick = { refresh++ }) { Text("Try again") } }
-            value.status == "NO_VALID_RECIPE" || value.status == "FAILED" -> Column(Modifier.padding(padding).padding(24.dp)) { Text("No actionable plan", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold); Text("Dietary and allergen constraints remain active. Adjust ingredients and try again.", color = FoodMindMuted) }
-            else -> LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                item { Text(value.status.replace('_', ' '), color = FoodMindGreen, fontWeight = FontWeight.Bold); Text("Your FoodMind cooking plan", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold); Text("${value.ingredients.size} ingredients · ${value.steps.size} ordered steps", color = FoodMindMuted) }
-                item { FoodMindSurfaceCard { Column { Text("Progress ${completed.size}/${value.steps.size}", fontWeight = FontWeight.Bold); LinearProgressIndicator(progress = { if (value.steps.isEmpty()) 0f else completed.size.toFloat() / value.steps.size }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)); Text("Progress is stored only on this screen; it does not claim the backend is complete or inventory changed.", color = FoodMindMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 7.dp)) } } }
-                item { Text("Ingredient plan", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
-                items(value.ingredients, key = { it.sequenceNo ?: it.ingredientName.hashCode() }) { ingredient -> FoodMindSurfaceCard { Row(Modifier.fillMaxWidth()) { Column(Modifier.weight(1f)) { Text(ingredient.ingredientName, fontWeight = FontWeight.Bold); Text(listOfNotNull(ingredient.quantity?.toString(), ingredient.unit).joinToString(" "), color = FoodMindMuted) }; Text(ingredient.availability?.replace('_', ' ') ?: "", color = FoodMindGreen) } } }
-                item { Text("Cook in order", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
-                items(value.steps.sortedBy { it.stepNo }, key = { it.stepNo ?: it.instruction.hashCode() }) { step ->
-                    val number = step.stepNo ?: 0; Card(onClick = { completed = if (number in completed) completed - number else completed + number }, colors = CardDefaults.cardColors(containerColor = if (number in completed) Color(0xFFEEF7F0) else Color.White), border = BorderStroke(1.dp, FoodMindLine)) { Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) { Checkbox(number in completed, { completed = if (number in completed) completed - number else completed + number }); Column(Modifier.padding(start = 6.dp)) { Text("Step $number", color = FoodMindGreen, fontWeight = FontWeight.Bold); Text(step.instruction) } } }
+            value == null -> Column(Modifier.padding(padding).padding(24.dp)) {
+                Text(error.orEmpty(), color = FoodMindCoral)
+                TextButton(onClick = { refresh++ }) { Text("Try again") }
+            }
+            else -> {
+                val status = value.status
+                LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    item {
+                        Text(status.replace('_', ' '), color = if (status == "READY") FoodMindGreen else FoodMindCoral, fontWeight = FontWeight.Bold)
+                        Text("Your FoodMind cooking plan", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
+                        value.makespanMinutes?.let { Text("预计 $it 分钟", color = FoodMindMuted) }
+                        value.sources.forEach { source -> Text("${source.dishName.orEmpty()} · ${source.targetServings ?: ""} 人份", color = FoodMindMuted, fontSize = 12.sp) }
+                    }
+                    when (status) {
+                        "READY" -> {
+                            item {
+                                FoodMindSurfaceCard { Column(Modifier.padding(16.dp)) {
+                                    Text("已完成 ${completed.size}/${value.timeline.size}", fontWeight = FontWeight.Bold)
+                                    LinearProgressIndicator(
+                                        progress = { if (value.timeline.isEmpty()) 0f else completed.size.toFloat() / value.timeline.size },
+                                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                                    )
+                                } }
+                            }
+                            item { Text("执行步骤", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+                            items(value.timeline.sortedBy { it.startMinute }, key = { it.taskId }) { task ->
+                                val checked = task.taskId in completed
+                                Card(
+                                    onClick = { completed = if (checked) completed - task.taskId else completed + task.taskId },
+                                    colors = CardDefaults.cardColors(containerColor = if (checked) Color(0xFFEEF7F0) else Color.White),
+                                    border = BorderStroke(1.dp, FoodMindLine),
+                                ) {
+                                    Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Checkbox(checked, { completed = if (checked) completed - task.taskId else completed + task.taskId })
+                                        Column(Modifier.padding(start = 6.dp)) {
+                                            Text(task.instruction, fontWeight = FontWeight.Medium)
+                                            Text(
+                                                "${task.startMinute}–${task.endMinute} 分钟 · ${if (task.workMode == "ACTIVE") "动手" else "等待"}" +
+                                                    if (task.resources.isEmpty()) "" else " · ${task.resources.joinToString("/")}",
+                                                color = FoodMindMuted,
+                                                fontSize = 12.sp,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            if (value.miseEnPlace.isNotEmpty()) {
+                                item { Text("备料（Mise en place）", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+                                items(value.miseEnPlace, key = { it.sequenceNo ?: it.instruction.hashCode() }) { mise ->
+                                    FoodMindSurfaceCard { Column(Modifier.padding(14.dp)) {
+                                        Text("${mise.sequenceNo ?: ""}. ${mise.instruction}", fontWeight = FontWeight.Medium)
+                                        Text(listOfNotNull(mise.ingredient, mise.durationMinutes?.let { "$it 分钟" }).joinToString(" · "), color = FoodMindMuted, fontSize = 12.sp)
+                                    } }
+                                }
+                            }
+                            if (value.completionChecklist.isNotEmpty()) {
+                                item { Text("完成清单", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+                                items(value.completionChecklist, key = { it.completionItemId }) { item ->
+                                    FoodMindSurfaceCard { Row(Modifier.fillMaxWidth()) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text(item.ingredientName, fontWeight = FontWeight.Bold)
+                                            Text("用于 ${item.recipeIds.size} 道菜", color = FoodMindMuted, fontSize = 12.sp)
+                                        }
+                                        Text(item.allocations.joinToString { "${it.quantity} ${it.unit}" }, color = FoodMindGreen)
+                                    } }
+                                }
+                            }
+                        }
+                        "NEEDS_CONFIRMATION" -> {
+                            item {
+                                Text("需要确认", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                                value.planRevision?.let { Text("计划版本 $it", color = FoodMindMuted, fontSize = 12.sp) }
+                            }
+                            item {
+                                ConfirmationForm(questions = value.confirmationQuestions, onSubmit = { answers ->
+                                    scope.launch {
+                                        runCatching { client.submitCookingPlanDecisions(planId, answers) }
+                                            .onSuccess { newPlan ->
+                                                val nextId = newPlan.planId
+                                                if (nextId != null) context.startActivity(CookingPlanDetailActivity.intent(context, nextId)) else onBack()
+                                            }
+                                    }
+                                })
+                            }
+                        }
+                        "INFEASIBLE" -> {
+                            item { Text("为什么无法执行", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+                            item {
+                                FoodMindSurfaceCard { Column(Modifier.padding(16.dp)) {
+                                    if (value.reasons.isEmpty()) Text("当前食材无法满足所选菜谱，请调整后重试。", color = FoodMindMuted)
+                                    else value.reasons.forEach { Text("• $it", color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp)) }
+                                } }
+                            }
+                            if (value.safeAlternatives.isNotEmpty()) {
+                                item { Text("安全替代方案", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+                                item { FoodMindSurfaceCard { Column(Modifier.padding(16.dp)) { value.safeAlternatives.forEach { Text("• $it", color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp)) } } } }
+                            }
+                        }
+                        else -> {
+                            item { Text("生成失败", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+                            item {
+                                FoodMindSurfaceCard { Column(Modifier.padding(16.dp)) {
+                                    Text(value.errorCode ?: "FAILED", color = FoodMindCoral, fontWeight = FontWeight.Bold)
+                                    value.errorMessage?.let { Text(it, color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp)) }
+                                    TextButton(onClick = { refresh++ }) { Text("重试") }
+                                } }
+                            }
+                        }
+                    }
                 }
-                if (value.warnings.isNotEmpty()) item { FoodMindSurfaceCard { Column { Text("Plan notes", fontWeight = FontWeight.Bold); value.warnings.forEach { Text("• ${it.message ?: it.warningCode}", color = FoodMindCoral, modifier = Modifier.padding(top = 5.dp)) } } } }
-                item { Text("The backend does not currently return a recipe title, total time, or nutrition summary, so this screen does not invent them.", color = FoodMindMuted, fontSize = 11.sp) }
             }
         }
+    }
+}
+
+@Composable
+private fun ConfirmationForm(questions: List<CookingConfirmationQuestionResponse>, onSubmit: (List<QuestionAnswerRequest>) -> Unit) {
+    var choices by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var texts by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var submitting by remember { mutableStateOf(false) }
+    var submitError by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        questions.forEach { question ->
+            FoodMindSurfaceCard { Column(Modifier.padding(14.dp)) {
+                Text(question.prompt, fontWeight = FontWeight.Bold)
+                when (question.responseType) {
+                    "CHOICE" -> question.options.forEach { option ->
+                        val selected = choices[question.questionId] == option.value
+                        Row(
+                            Modifier.fillMaxWidth().clickable { choices = choices + (question.questionId to option.value) }.padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected, { choices = choices + (question.questionId to option.value) })
+                            Text(option.label, modifier = Modifier.padding(start = 6.dp))
+                        }
+                    }
+                    else -> OutlinedTextField(
+                        value = texts[question.questionId] ?: question.suggestedValue.orEmpty(),
+                        onValueChange = { texts = texts + (question.questionId to it) },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    )
+                }
+            } }
+        }
+        submitError?.let { Text(it, color = FoodMindCoral) }
+        Button(onClick = {
+            val answers = buildList {
+                questions.forEach { q ->
+                    when (q.responseType) {
+                        "CHOICE" -> choices[q.questionId]?.let { add(QuestionAnswerRequest(q.questionId, it)) }
+                        else -> (texts[q.questionId] ?: q.suggestedValue.orEmpty()).trim().takeIf(String::isNotEmpty)?.let { add(QuestionAnswerRequest(q.questionId, it)) }
+                    }
+                }
+            }
+            scope.launch {
+                submitting = true; submitError = null
+                runCatching { onSubmit(answers) }.onFailure { submitError = "提交确认失败，请重试。" }
+                submitting = false
+            }
+        }, enabled = !submitting, modifier = Modifier.fillMaxWidth()) { Text(if (submitting) "提交中…" else "确认并生成计划") }
     }
 }

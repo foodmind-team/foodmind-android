@@ -261,6 +261,9 @@ class FoodMindApiClient(
     suspend fun cancelCookingPlanTask(planId: String): retrofit2.Response<CookingPlanResponse> =
         api.cancelCookingPlanTask(planId, "{}".toRequestBody(null))
 
+    suspend fun submitCookingPlanDecisions(planId: String, answers: List<QuestionAnswerRequest>): CookingPlanResponse =
+        api.submitDecisions(planId, UUID.randomUUID().toString(), answers)
+
     suspend fun cookingPlan(planId: String) = api.cookingPlan(planId)
     suspend fun cookingPlanHistory(page: Int = 0) = api.cookingPlanHistory(page)
     suspend fun createMediaUpload(request: CreateMediaUploadRequest) = api.createMediaUpload(request)
