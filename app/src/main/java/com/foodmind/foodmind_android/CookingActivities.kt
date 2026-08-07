@@ -45,6 +45,7 @@ import com.foodmind.foodmind_android.core.network.CookingIngredientRequest
 import com.foodmind.foodmind_android.core.network.CookingPlanResponse
 import com.foodmind.foodmind_android.core.network.CookingPlanSummary
 import com.foodmind.foodmind_android.core.network.CookingPlanTaskResponse
+import com.foodmind.foodmind_android.core.network.CookingQuestionAnswer
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
 import com.foodmind.foodmind_android.core.network.GenerateCookingPlanRequest
 import com.foodmind.foodmind_android.domain.repository.AsyncSubmitResult
@@ -181,25 +182,83 @@ class CookingPlanDetailActivity : ComponentActivity() {
 
 @Composable
 private fun CookingPlanDetailScreen(client: FoodMindApiClient, planId: String, onBack: () -> Unit) {
-    var plan by remember { mutableStateOf<CookingPlanResponse?>(null) }; var error by remember { mutableStateOf<String?>(null) }; var completed by remember { mutableStateOf(setOf<Int>()) }; var refresh by remember { mutableStateOf(0) }
+    var plan by remember { mutableStateOf<CookingPlanResponse?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var completed by remember { mutableStateOf(setOf<String>()) }
+    var refresh by remember { mutableStateOf(0) }
+    var decisionAnswers by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var submittingDecisions by remember { mutableStateOf(false) }
+    var decisionError by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     LaunchedEffect(planId, refresh) { runCatching { client.cookingPlan(planId) }.onSuccess { plan = it; error = null }.onFailure { error = "Could not load the plan." } }
     FoodMindDetailScaffold("Cooking plan", onBack) { padding ->
         val value = plan
         when {
             value == null && error == null -> CircularProgressIndicator(Modifier.padding(padding).padding(24.dp))
             value == null -> Column(Modifier.padding(padding).padding(24.dp)) { Text(error.orEmpty(), color = FoodMindCoral); TextButton(onClick = { refresh++ }) { Text("Try again") } }
-            value.status == "NO_VALID_RECIPE" || value.status == "FAILED" -> Column(Modifier.padding(padding).padding(24.dp)) { Text("No actionable plan", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold); Text("Dietary and allergen constraints remain active. Adjust ingredients and try again.", color = FoodMindMuted) }
+            value.status == "PROCESSING" -> Column(Modifier.padding(padding).padding(24.dp)) {
+                CircularProgressIndicator()
+                Text("Building your cooking plan", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 16.dp))
+                Text("The Cooking Agent is still working. Refresh shortly to load the result.", color = FoodMindMuted)
+                TextButton(onClick = { refresh++ }) { Text("Refresh") }
+            }
+            value.status == "NO_VALID_RECIPE" || value.status == "FAILED" -> Column(Modifier.padding(padding).padding(24.dp)) {
+                Text("No actionable plan", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
+                Text(value.errorMessage ?: "Dietary and allergen constraints remain active. Adjust ingredients and try again.", color = FoodMindMuted)
+            }
+            value.status == "INFEASIBLE" -> LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { Text("No feasible cooking plan", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold); Text(value.explanation ?: "Review the constraints and try again.", color = FoodMindMuted) }
+                items(value.reasons) { reason -> FoodMindSurfaceCard { Text(reason) } }
+                if (value.safeAlternatives.isNotEmpty()) {
+                    item { Text("Safe alternatives", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+                    items(value.safeAlternatives) { alternative -> FoodMindSurfaceCard { Text(alternative) } }
+                }
+            }
+            value.status == "NEEDS_CONFIRMATION" -> LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { Text("Your plan needs a decision", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold); Text(value.explanation ?: "Review the questions below before generating again.", color = FoodMindMuted) }
+                items(value.confirmationQuestions, key = { it.questionId ?: it.fieldPath ?: it.prompt.hashCode() }) { question ->
+                    FoodMindSurfaceCard { Column { Text(question.prompt ?: question.fieldPath ?: "Confirmation needed", fontWeight = FontWeight.Bold); if (question.responseType == "TEXT" && question.questionId != null) OutlinedTextField(value = decisionAnswers[question.questionId].orEmpty(), onValueChange = { value -> decisionAnswers = decisionAnswers + (question.questionId to value) }, label = { Text("Answer") }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)); question.options.forEach { option -> val questionId = question.questionId; val optionValue = option.value; OutlinedButton(onClick = { if (questionId != null && optionValue != null) decisionAnswers = decisionAnswers + (questionId to optionValue) }, enabled = questionId != null && optionValue != null, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) { Text("${if (questionId != null && decisionAnswers[questionId] == optionValue) "✓ " else ""}${option.label ?: optionValue}${if (option.suggested) " · suggested" else ""}") } } } }
+                }
+                if (value.confirmationQuestions.isEmpty()) items(value.questions) { question -> FoodMindSurfaceCard { Text(question) } }
+                if (value.repairOptions.isNotEmpty()) {
+                    item { Text("Available adjustments", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+                    items(value.repairOptions, key = { it.optionId ?: it.description.hashCode() }) { option -> FoodMindSurfaceCard { Column { Text(option.optionType?.replace('_', ' ') ?: "Option", fontWeight = FontWeight.Bold); Text(option.description.orEmpty(), color = FoodMindMuted) } } }
+                }
+                val requiredComplete = value.confirmationQuestions.all { !it.required || (it.questionId != null && !decisionAnswers[it.questionId].isNullOrBlank()) }
+                val answers = value.confirmationQuestions.mapNotNull { question -> question.questionId?.let { id -> decisionAnswers[id]?.trim()?.takeIf(String::isNotEmpty)?.let { answer -> CookingQuestionAnswer(id, answer) } } }
+                if (decisionError != null) item { Text(decisionError.orEmpty(), color = FoodMindCoral) }
+                if (value.confirmationQuestions.isNotEmpty()) item { Button(onClick = { scope.launch { submittingDecisions = true; decisionError = null; runCatching { client.submitCookingPlanDecisions(planId, answers) }.onSuccess { updated -> plan = updated; decisionAnswers = emptyMap() }.onFailure { decisionError = "Could not apply those decisions. Refresh the plan and try again." }; submittingDecisions = false } }, enabled = requiredComplete && answers.isNotEmpty() && !submittingDecisions, modifier = Modifier.fillMaxWidth()) { Text(if (submittingDecisions) "Applying decisions…" else "Apply decisions and rebuild plan") } }
+            }
             else -> LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                item { Text(value.status.replace('_', ' '), color = FoodMindGreen, fontWeight = FontWeight.Bold); Text("Your FoodMind cooking plan", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold); Text("${value.ingredients.size} ingredients · ${value.steps.size} ordered steps", color = FoodMindMuted) }
-                item { FoodMindSurfaceCard { Column { Text("Progress ${completed.size}/${value.steps.size}", fontWeight = FontWeight.Bold); LinearProgressIndicator(progress = { if (value.steps.isEmpty()) 0f else completed.size.toFloat() / value.steps.size }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)); Text("Progress is stored only on this screen; it does not claim the backend is complete or inventory changed.", color = FoodMindMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 7.dp)) } } }
-                item { Text("Ingredient plan", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
-                items(value.ingredients, key = { it.sequenceNo ?: it.ingredientName.hashCode() }) { ingredient -> FoodMindSurfaceCard { Row(Modifier.fillMaxWidth()) { Column(Modifier.weight(1f)) { Text(ingredient.ingredientName, fontWeight = FontWeight.Bold); Text(listOfNotNull(ingredient.quantity?.toString(), ingredient.unit).joinToString(" "), color = FoodMindMuted) }; Text(ingredient.availability?.replace('_', ' ') ?: "", color = FoodMindGreen) } } }
+                val orderedTimeline = value.timeline.sortedBy { it.startMinute ?: 0 }
+                val totalSteps = if (orderedTimeline.isNotEmpty()) orderedTimeline.size else value.steps.size
+                val sourceCount = if (value.sources.isNotEmpty()) value.sources.size else value.ingredients.size
+                item { Text(value.status.replace('_', ' '), color = FoodMindGreen, fontWeight = FontWeight.Bold); Text("Your FoodMind cooking plan", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold); Text("$sourceCount dishes or ingredients · $totalSteps ordered steps", color = FoodMindMuted); value.explanation?.let { Text(it, color = FoodMindMuted, modifier = Modifier.padding(top = 7.dp)) } }
+                item { FoodMindSurfaceCard { Column { Text("Progress ${completed.size}/$totalSteps", fontWeight = FontWeight.Bold); LinearProgressIndicator(progress = { if (totalSteps == 0) 0f else completed.size.toFloat() / totalSteps }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)); Text("Progress is stored only on this screen; it does not claim the backend is complete or inventory changed.", color = FoodMindMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 7.dp)) } } }
+                if (value.sources.isNotEmpty()) {
+                    item { Text("Dishes", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+                    items(value.sources, key = { it.sequenceNo ?: it.dishName.hashCode() }) { source -> FoodMindSurfaceCard { Row(Modifier.fillMaxWidth()) { Column(Modifier.weight(1f)) { Text(source.dishName ?: "Source dish", fontWeight = FontWeight.Bold); Text(source.targetServings?.let { "$it servings" }.orEmpty(), color = FoodMindMuted) }; Text(source.sourceType?.replace('_', ' ') ?: "", color = FoodMindGreen) } } }
+                }
+                if (value.ingredients.isNotEmpty()) {
+                    item { Text("Ingredient plan", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+                    items(value.ingredients, key = { it.sequenceNo ?: it.ingredientName.hashCode() }) { ingredient -> FoodMindSurfaceCard { Row(Modifier.fillMaxWidth()) { Column(Modifier.weight(1f)) { Text(ingredient.ingredientName, fontWeight = FontWeight.Bold); Text(listOfNotNull(ingredient.quantity?.toString(), ingredient.unit).joinToString(" "), color = FoodMindMuted) }; Text(ingredient.availability?.replace('_', ' ') ?: "", color = FoodMindGreen) } } }
+                }
                 item { Text("Cook in order", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
-                items(value.steps.sortedBy { it.stepNo }, key = { it.stepNo ?: it.instruction.hashCode() }) { step ->
-                    val number = step.stepNo ?: 0; Card(onClick = { completed = if (number in completed) completed - number else completed + number }, colors = CardDefaults.cardColors(containerColor = if (number in completed) Color(0xFFEEF7F0) else Color.White), border = BorderStroke(1.dp, FoodMindLine)) { Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) { Checkbox(number in completed, { completed = if (number in completed) completed - number else completed + number }); Column(Modifier.padding(start = 6.dp)) { Text("Step $number", color = FoodMindGreen, fontWeight = FontWeight.Bold); Text(step.instruction) } } }
+                if (orderedTimeline.isNotEmpty()) items(orderedTimeline, key = { it.taskId ?: "${it.startMinute}-${it.instruction}" }) { task ->
+                    val taskKey = task.taskId ?: "${task.startMinute}-${task.instruction}"
+                    Card(onClick = { completed = if (taskKey in completed) completed - taskKey else completed + taskKey }, colors = CardDefaults.cardColors(containerColor = if (taskKey in completed) Color(0xFFEEF7F0) else Color.White), border = BorderStroke(1.dp, FoodMindLine)) { Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) { Checkbox(taskKey in completed, { completed = if (taskKey in completed) completed - taskKey else completed + taskKey }); Column(Modifier.padding(start = 6.dp)) { Text("Minute ${task.startMinute ?: 0} · ${task.durationMinutes ?: 0} min", color = FoodMindGreen, fontWeight = FontWeight.Bold); Text(task.instruction.orEmpty()); Text(task.workMode?.replace('_', ' ').orEmpty(), color = FoodMindMuted, fontSize = 11.sp) } } }
+                } else items(value.steps.sortedBy { it.stepNo }, key = { it.stepNo ?: it.instruction.hashCode() }) { step ->
+                    val number = step.stepNo ?: 0
+                    val taskKey = "legacy-$number"
+                    Card(onClick = { completed = if (taskKey in completed) completed - taskKey else completed + taskKey }, colors = CardDefaults.cardColors(containerColor = if (taskKey in completed) Color(0xFFEEF7F0) else Color.White), border = BorderStroke(1.dp, FoodMindLine)) { Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) { Checkbox(taskKey in completed, { completed = if (taskKey in completed) completed - taskKey else completed + taskKey }); Column(Modifier.padding(start = 6.dp)) { Text("Step $number", color = FoodMindGreen, fontWeight = FontWeight.Bold); Text(step.instruction) } } }
+                }
+                if (value.miseEnPlace.isNotEmpty()) {
+                    item { Text("Mise en place", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+                    items(value.miseEnPlace, key = { it.sequenceNo ?: it.instruction.hashCode() }) { prep -> FoodMindSurfaceCard { Column { Text(prep.instruction.orEmpty(), fontWeight = FontWeight.Bold); Text(listOfNotNull(prep.ingredient, prep.operation, prep.durationMinutes?.let { "$it min" }).joinToString(" · "), color = FoodMindMuted) } } }
                 }
                 if (value.warnings.isNotEmpty()) item { FoodMindSurfaceCard { Column { Text("Plan notes", fontWeight = FontWeight.Bold); value.warnings.forEach { Text("• ${it.message ?: it.warningCode}", color = FoodMindCoral, modifier = Modifier.padding(top = 5.dp)) } } } }
-                item { Text("The backend does not currently return a recipe title, total time, or nutrition summary, so this screen does not invent them.", color = FoodMindMuted, fontSize = 11.sp) }
+                if (value.assumptions.isNotEmpty()) item { FoodMindSurfaceCard { Column { Text("Assumptions", fontWeight = FontWeight.Bold); value.assumptions.forEach { Text("• ${it.text}", color = FoodMindCoral, modifier = Modifier.padding(top = 5.dp)) } } } }
+                item { Text(listOfNotNull(value.solverStatus?.let { "Solver ${it.replace('_', ' ')}" }, value.makespanMinutes?.let { "$it minute plan" }, value.region?.let { "Region $it" }).joinToString(" · "), color = FoodMindMuted, fontSize = 11.sp) }
             }
         }
     }

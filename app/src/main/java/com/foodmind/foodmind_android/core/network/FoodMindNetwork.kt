@@ -10,6 +10,7 @@ import kotlinx.coroutines.runBlocking
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 interface SessionTokenStore {
     fun accessToken(): String?
@@ -75,6 +76,10 @@ object FoodMindNetwork {
             .addInterceptor(BearerTokenInterceptor(tokenStore))
             .addInterceptor(CorrelationIdInterceptor())
             .authenticator(SessionAuthenticator(baseUrl, tokenStore))
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.MINUTES)
+            .callTimeout(5, TimeUnit.MINUTES)
             .build()
         return createApi(baseUrl, client)
     }
@@ -262,6 +267,8 @@ class FoodMindApiClient(
         api.cancelCookingPlanTask(planId, "{}".toRequestBody(null))
 
     suspend fun cookingPlan(planId: String) = api.cookingPlan(planId)
+    suspend fun submitCookingPlanDecisions(planId: String, answers: List<CookingQuestionAnswer>) =
+        api.submitCookingPlanDecisions(planId, UUID.randomUUID().toString(), answers)
     suspend fun cookingPlanHistory(page: Int = 0) = api.cookingPlanHistory(page)
     suspend fun createMediaUpload(request: CreateMediaUploadRequest) = api.createMediaUpload(request)
     suspend fun finaliseMediaUpload(mediaAssetId: String) = api.finaliseMediaUpload(mediaAssetId)

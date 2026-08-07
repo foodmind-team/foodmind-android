@@ -242,6 +242,13 @@ interface FoodMindApi {
     @GET("cooking-plans/{planId}")
     suspend fun cookingPlan(@Path("planId") planId: String): CookingPlanResponse
 
+    @POST("cooking-plans/{planId}/decisions")
+    suspend fun submitCookingPlanDecisions(
+        @Path("planId") planId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body answers: List<CookingQuestionAnswer>,
+    ): CookingPlanResponse
+
     @GET("cooking-plans/history")
     suspend fun cookingPlanHistory(@Query("page") page: Int = 0, @Query("size") size: Int = 20): CookingPlanHistoryResponse
 
