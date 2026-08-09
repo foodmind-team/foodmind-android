@@ -4,7 +4,7 @@ import com.foodmind.foodmind_android.core.network.CookingPlanAsyncAcceptedRespon
 import com.foodmind.foodmind_android.core.network.CookingPlanResponse
 import com.foodmind.foodmind_android.core.network.CookingPlanTaskProgressResponse
 import com.foodmind.foodmind_android.core.network.CookingPlanTaskResponse
-import com.foodmind.foodmind_android.core.network.CookingStepResponse
+import com.foodmind.foodmind_android.core.network.CookingTimelineTaskResponse
 import com.foodmind.foodmind_android.core.network.GenerateCookingPlanRequest
 import kotlinx.coroutines.test.runTest
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -109,7 +109,10 @@ class CookingPlanTaskRepositoryTest {
                 CookingPlanResponse(
                     status = "READY",
                     planId = planId,
-                    steps = listOf(CookingStepResponse(stepNo = 1, instruction = "步骤一")),
+                    timeline = listOf(CookingTimelineTaskResponse(
+                        taskId = "t1", startMinute = 0, endMinute = 5, durationMinutes = 5,
+                        instruction = "步骤一", dishId = "d1", workMode = "ACTIVE", category = "general",
+                    )),
                 )
             },
             cancelTask = { error("not used") },
@@ -119,7 +122,7 @@ class CookingPlanTaskRepositoryTest {
 
         assertTrue(result.isSuccess)
         assertEquals("READY", result.getOrThrow().status)
-        assertEquals(1, result.getOrThrow().steps.size)
+        assertEquals(1, result.getOrThrow().timeline.size)
         assertEquals(listOf("collect_inputs", "solve_schedule"), progressNodes)
     }
 
@@ -145,7 +148,7 @@ class CookingPlanTaskRepositoryTest {
             getTask = { error("not used") },
             readPlan = { error("not used") },
             cancelTask = {
-                Response.success(CookingPlanResponse(status = "FAILED", planId = "plan-1", failureCode = "TASK_CANCELLED"))
+                Response.success(CookingPlanResponse(status = "FAILED", planId = "plan-1", errorCode = "TASK_CANCELLED"))
             },
         )
 
@@ -153,7 +156,7 @@ class CookingPlanTaskRepositoryTest {
 
         assertTrue(result.isSuccess)
         assertEquals("FAILED", result.getOrThrow().status)
-        assertEquals("TASK_CANCELLED", result.getOrThrow().failureCode)
+        assertEquals("TASK_CANCELLED", result.getOrThrow().errorCode)
     }
 
     @Test

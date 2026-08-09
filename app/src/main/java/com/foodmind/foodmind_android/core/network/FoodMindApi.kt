@@ -267,6 +267,13 @@ interface FoodMindApi {
         @Body body: okhttp3.RequestBody,
     ): retrofit2.Response<CookingPlanResponse>
 
+    @POST("cooking-plans/{planId}/decisions")
+    suspend fun submitDecisions(
+        @Path("planId") planId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body answers: List<QuestionAnswerRequest>,
+    ): CookingPlanResponse
+
     @POST("media/uploads")
     suspend fun createMediaUpload(@Body request: CreateMediaUploadRequest): MediaUploadInstructionResponse
 
