@@ -56,7 +56,7 @@ class RecommendationDetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val sessionId = intent.getStringExtra(EXTRA_SESSION_ID).orEmpty(); val client = foodMindApiClient()
-        setContent { FoodMindTheme { RecommendationDetailScreen(client, sessionId, ::finish, { startActivity(RecommendationDetailActivity.intent(this, it)); finish() }, { type, id -> startActivity(CatalogueDetailActivity.intent(this, type, id)) }) } }
+        setContent { FoodMindTheme { RecommendationDetailScreen(client, sessionId, ::finish, { startActivity(RecommendationDetailActivity.intent(this, it)); finish() }, { type, id -> startActivity(CatalogueDetailActivity.intent(this, type, id)) }, { id -> startActivity(RecordDetailActivity.intent(this, "FOOD", id)) }) } }
     }
     companion object { private const val EXTRA_SESSION_ID = "session_id"; fun intent(context: Context, sessionId: String) = Intent(context, RecommendationDetailActivity::class.java).putExtra(EXTRA_SESSION_ID, sessionId) }
 }
@@ -68,6 +68,7 @@ private fun RecommendationDetailScreen(
     onBack: () -> Unit,
     onNewSession: (String) -> Unit,
     onCatalogue: (String, String) -> Unit,
+    onRecord: (String) -> Unit,
 ) {
     var response by remember { mutableStateOf<RecommendationResponse?>(null) }; var groups by remember { mutableStateOf<List<GroupResponse>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }; var feedback by remember { mutableStateOf(setOf<String>()) }; var saved by remember { mutableStateOf(setOf<String>()) }; var shared by remember { mutableStateOf(setOf<String>()) }; var busy by remember { mutableStateOf(false) }; var refresh by remember { mutableStateOf(0) }
@@ -86,6 +87,7 @@ private fun RecommendationDetailScreen(
                     itemsIndexed(candidates, key = { _, item -> item.candidateId.orEmpty() }) { index, candidate ->
                         CandidateCard(index, candidate, candidate.candidateId in feedback, candidate.mealId in saved, candidate.candidateId in shared,
                             onPlace = { candidate.placeId?.let { onCatalogue("PLACE", it) } },
+                            onRecord = { candidate.foodRecordId?.let(onRecord) },
                             onAccept = { candidate.candidateId?.let { id -> scope.launch { busy = true; runCatching { client.submitRecommendationFeedback(sessionId, RecommendationFeedbackRequest(id, "ACCEPTED")) }.onSuccess { feedback = feedback + id }.onFailure { error = "Could not submit feedback." }; busy = false } } },
                             onReject = { candidate.candidateId?.let { id -> scope.launch { runCatching { client.submitRecommendationFeedback(sessionId, RecommendationFeedbackRequest(id, "REJECTED", "NOT_IN_MOOD")) }.onSuccess { feedback = feedback + id } } } },
                             onSave = { candidate.mealId?.let { id -> scope.launch { runCatching { client.saveWantToTry("MEAL", id) }.onSuccess { saved = saved + id }.onFailure { error = "Could not save." } } } },
@@ -110,12 +112,14 @@ private fun CandidateCard(
     saved: Boolean,
     shared: Boolean,
     onPlace: () -> Unit,
+    onRecord: () -> Unit,
     onAccept: () -> Unit,
     onReject: () -> Unit,
     onSave: () -> Unit,
     onShare: (String) -> Unit,
     groups: List<GroupResponse>,
 ) {
+    val isRecordCandidate = candidate.candidateSourceType == "FOOD_RECORD"
     Card(colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
         Column(Modifier.padding(17.dp)) {
             Text("#${candidate.rank ?: index + 1} · ${candidate.recommendationType?.replace('_', ' ') ?: "MATCH"}", color = FoodMindGreen, fontWeight = FontWeight.Bold)
@@ -123,8 +127,8 @@ private fun CandidateCard(
             Text(listOfNotNull(candidate.placeName, candidate.area, candidate.price?.let { "${it.amount} ${it.currency}" }).joinToString(" · "), color = FoodMindMuted)
             Text(candidate.explanation ?: candidate.reasons.firstOrNull() ?: "The backend did not return further details.", modifier = Modifier.padding(top = 10.dp))
             FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { candidate.reasonCodes.forEach { AssistChip(onClick = {}, label = { Text(it.replace('_', ' ')) }) } }
-            TextButton(onClick = onPlace, enabled = candidate.placeId != null) { Icon(Icons.Outlined.LocationOn, null); Text("View place") }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { Button(onClick = onAccept, enabled = !responded) { Text(if (responded) "Feedback sent" else "Choose this") }; OutlinedButton(onClick = onReject, enabled = !responded) { Text("Not a fit") }; OutlinedButton(onClick = onSave, enabled = !saved && candidate.mealId != null) { Icon(Icons.Outlined.BookmarkAdd, null) } }
+            if (isRecordCandidate) TextButton(onClick = onRecord, enabled = candidate.foodRecordId != null) { Icon(Icons.Outlined.BookmarkAdd, null); Text("Open record") } else TextButton(onClick = onPlace, enabled = candidate.placeId != null) { Icon(Icons.Outlined.LocationOn, null); Text("View place") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { Button(onClick = onAccept, enabled = !responded) { Text(if (responded) "Feedback sent" else "Choose this") }; OutlinedButton(onClick = onReject, enabled = !responded) { Text("Not a fit") }; if (!isRecordCandidate) OutlinedButton(onClick = onSave, enabled = !saved && candidate.mealId != null) { Icon(Icons.Outlined.BookmarkAdd, null) } }
             if (groups.isNotEmpty()) FlowRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { groups.take(4).forEach { group -> OutlinedButton(onClick = { group.id?.let(onShare) }, enabled = !shared) { Icon(Icons.Outlined.Share, null); Text(if (shared) "Shared" else group.name ?: "Groups") } } }
         }
     }
