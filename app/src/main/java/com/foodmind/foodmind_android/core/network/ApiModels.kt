@@ -486,13 +486,18 @@ data class RecommendationResponse(
 
 data class RecommendationCandidateResponse(
     val candidateId: String? = null,
+    val candidateSourceType: String? = null,
     val placeMealId: String? = null,
+    val foodRecordId: String? = null,
     val mealId: String? = null,
     val mealName: String? = null,
     val placeId: String? = null,
     val placeName: String? = null,
     val area: String? = null,
     val price: RecommendationMoneyResponse? = null,
+    val priceKind: String? = null,
+    val recordOwnerDisplayName: String? = null,
+    val recordOccurredAt: String? = null,
     val recommendationType: String? = null,
     val rank: Int? = null,
     val reasonCodes: List<String> = emptyList(),
