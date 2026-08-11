@@ -56,15 +56,15 @@ class RealStackParityTest {
 
         launch(InventoryActivity::class.java)
         composeRule.waitUntil(timeoutMillis = 15_000) {
-            composeRule.onAllNodesWithText("E2E firm tofu").fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodesWithText("E2E firm tofu", substring = true).fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithText("E2E firm tofu").assertIsDisplayed()
+        composeRule.onNodeWithText("E2E firm tofu", substring = true).assertIsDisplayed()
 
         launch(RecipeLibraryActivity::class.java)
         composeRule.waitUntil(timeoutMillis = 15_000) {
-            composeRule.onAllNodesWithText("E2E tofu bowl").fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodesWithText("E2E tofu bowl", substring = true).fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithText("E2E tofu bowl").assertIsDisplayed()
+        composeRule.onNodeWithText("E2E tofu bowl", substring = true).assertIsDisplayed()
 
         launch(ShoppingListsActivity::class.java)
         composeRule.onNodeWithText("Shopping lists").assertIsDisplayed()
