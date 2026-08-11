@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
@@ -58,13 +59,13 @@ class RealStackParityTest {
         composeRule.waitUntil(timeoutMillis = 15_000) {
             composeRule.onAllNodesWithText("E2E firm tofu", substring = true).fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithText("E2E firm tofu", substring = true).assertIsDisplayed()
+        composeRule.onAllNodesWithText("E2E firm tofu", substring = true).onFirst().assertIsDisplayed()
 
         launch(RecipeLibraryActivity::class.java)
         composeRule.waitUntil(timeoutMillis = 15_000) {
             composeRule.onAllNodesWithText("E2E tofu bowl", substring = true).fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithText("E2E tofu bowl", substring = true).assertIsDisplayed()
+        composeRule.onAllNodesWithText("E2E tofu bowl", substring = true).onFirst().assertIsDisplayed()
 
         launch(ShoppingListsActivity::class.java)
         composeRule.onNodeWithText("Shopping lists").assertIsDisplayed()
