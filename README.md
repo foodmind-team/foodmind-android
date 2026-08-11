@@ -2,7 +2,7 @@
 
 FoodMind Android is the native mobile client for FoodMind. It must expose the same business capabilities, validation semantics, permission outcomes, and backend metrics as the Web client while using mobile-appropriate navigation and interaction patterns.
 
-> **Current status:** the repository includes a native XML/AppCompat recommendation-first UX prototype with a two-mode home shell, a prominent generation action, group context, Explore preview, and labeled bottom navigation. The target Compose architecture, backend integration, authentication, production feature screens, charts, and automated tests remain to be implemented.
+> **Current status:** the application is a Compose/Retrofit client integrated with the complete public backend contract. Contract generation, 83-operation coverage, debug APK assembly, unit tests, lint, and emulator acceptance are release gates.
 
 ## Responsibilities
 
@@ -18,7 +18,7 @@ The Android application is responsible for:
 - A recommendation-first home with an **Eat out & delivery / Cooking** mode switch
 - One lead recommendation at a time, with access to alternate candidates
 - Acceptance, rejection, re-recommendation, and later rating
-- Cooking-plan input and output from manually supplied pantry/inventory context
+- Inventory, shopping-list, cloud-recipe, recipe-import, and cooking-plan workflows
 - Permission-safe Explore presentation for group-visible and curated posts
 - FoodMind Chatbot sessions and grounded references
 - Dashboard charts and weekly recap
@@ -34,18 +34,14 @@ The Android application is not responsible for:
 
 ## Technology Direction
 
-Target architecture:
+Implemented technology direction:
 
 - Kotlin
 - Jetpack Compose
-- Navigation Compose
-- ViewModel
-- StateFlow
+- Activity-scoped Compose navigation
 - Coroutines
 - Retrofit and OkHttp
-- Vico charts
-
-The repository currently contains AppCompat, ConstraintLayout, and XML-view dependencies from the generated template. Migration to Compose must be deliberate and tested rather than treated as already complete.
+- Android platform chart rendering for backend-owned metrics
 
 ## System Boundary
 
@@ -159,6 +155,8 @@ Avoid exposing Retrofit response types directly to Composables.
 - IDs: opaque
 
 Android and Web should share UAT scenarios, not source code.
+
+Run `./gradlew apiGenerate` after an intentional backend contract change. CI runs `apiCheck` and `apiCoverage`; both fail when the snapshot, generated DTO field manifest, or Retrofit operation surface drifts.
 
 ## Build Configuration
 
