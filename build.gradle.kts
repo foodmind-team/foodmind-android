@@ -24,8 +24,10 @@ val generatedManifest = layout.projectDirectory.file(
     "app/src/main/java/com/foodmind/foodmind_android/core/network/generated/BackendOpenApiContract.kt",
 )
 
+fun String.canonicalText(): String = replace("\r\n", "\n").replace("\r", "\n")
+
 fun String.sha256(): String = MessageDigest.getInstance("SHA-256")
-    .digest(toByteArray())
+    .digest(canonicalText().toByteArray(Charsets.UTF_8))
     .joinToString("") { "%02x".format(it) }
 
 fun operations(openApi: String): Set<String> {
@@ -107,7 +109,7 @@ tasks.register("apiGenerateContract") {
     inputs.file(backendOpenApi)
     outputs.files(contractSnapshot, contractLock, generatedManifest)
     doLast {
-        val source = backendOpenApi.readText()
+        val source = backendOpenApi.readText().canonicalText()
         contractSnapshot.asFile.apply { parentFile.mkdirs(); writeText(source) }
         generatedManifest.asFile.apply { parentFile.mkdirs(); writeText(generatedContract(source)) }
         contractLock.asFile.writeText("sha256=${source.sha256()}\noperations=${operations(source).size}\n")
@@ -166,13 +168,13 @@ tasks.register("apiCheck") {
     doLast {
         val source = backendOpenApi.readText()
         val snapshot = contractSnapshot.asFile.readText()
-        check(source.replace("\r\n", "\n") == snapshot.replace("\r\n", "\n")) {
+        check(source.canonicalText() == snapshot.canonicalText()) {
             "Android OpenAPI snapshot differs from the backend source. Run ./gradlew apiGenerate."
         }
-        check(contractLock.asFile.readText() == "sha256=${snapshot.sha256()}\noperations=${operations(snapshot).size}\n") {
+        check(contractLock.asFile.readText().canonicalText() == "sha256=${snapshot.sha256()}\noperations=${operations(snapshot).size}\n") {
             "Android OpenAPI lock is stale. Run ./gradlew apiGenerate."
         }
-        check(generatedManifest.asFile.readText().replace("\r\n", "\n") == generatedContract(snapshot).replace("\r\n", "\n")) {
+        check(generatedManifest.asFile.readText().canonicalText() == generatedContract(snapshot).canonicalText()) {
             "Android generated contract metadata is stale. Run ./gradlew apiGenerate."
         }
         logger.lifecycle("Android API source, lock, generated DTO manifest, and Retrofit coverage match.")
