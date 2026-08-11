@@ -51,9 +51,11 @@ import com.foodmind.foodmind_android.core.network.CookingPlanSummary
 import com.foodmind.foodmind_android.core.network.CookingPlanTaskResponse
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
 import com.foodmind.foodmind_android.core.network.GenerateCookingPlanRequest
-import com.foodmind.foodmind_android.core.network.QuestionAnswerRequest
+import com.foodmind.foodmind_android.core.network.CookingQuestionAnswer
 import com.foodmind.foodmind_android.domain.repository.AsyncSubmitResult
+import com.foodmind.foodmind_android.domain.repository.COOKING_PLAN_CANCEL_CONFLICT
 import com.foodmind.foodmind_android.domain.repository.CookingPlanTaskRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class ManualCookingActivity : ComponentActivity() {
@@ -190,11 +192,23 @@ private fun CookingPlanDetailScreen(client: FoodMindApiClient, planId: String, o
     var error by remember { mutableStateOf<String?>(null) }
     var completed by remember { mutableStateOf(setOf<String>()) }
     var refresh by remember { mutableStateOf(0) }
+    var taskProgress by remember { mutableStateOf<CookingPlanTaskResponse?>(null) }
+    var cancelling by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     LaunchedEffect(planId, refresh) {
-        runCatching { client.cookingPlan(planId) }
-            .onSuccess { plan = it; error = null }
+        runCatching {
+            do {
+                val current = client.cookingPlan(planId)
+                plan = current; error = null
+                if (current.status == "PROCESSING") {
+                    val task = client.cookingPlanTask(planId)
+                    if (task.isSuccessful) taskProgress = task.body()
+                    delay(2_000)
+                }
+            } while (current.status == "PROCESSING")
+            taskProgress = null
+        }
             .onFailure { error = "Could not load the plan." }
     }
     FoodMindDetailScaffold("Cooking plan", onBack) { padding ->
@@ -214,7 +228,49 @@ private fun CookingPlanDetailScreen(client: FoodMindApiClient, planId: String, o
                         value.makespanMinutes?.let { Text("预计 $it 分钟", color = FoodMindMuted) }
                         value.sources.forEach { source -> Text("${source.dishName.orEmpty()} · ${source.targetServings ?: ""} 人份", color = FoodMindMuted, fontSize = 12.sp) }
                     }
+                    error?.let { message -> item { Text(message, color = FoodMindCoral) } }
                     when (status) {
+                        "PROCESSING" -> {
+                            item {
+                                FoodMindSurfaceCard {
+                                    Column(Modifier.padding(16.dp)) {
+                                        Text("Background generation", fontWeight = FontWeight.Bold)
+                                        Text(
+                                            taskProgress?.progress?.node?.replace('_', ' ') ?: "Starting the background task…",
+                                            color = FoodMindGreen,
+                                        )
+                                        Text(
+                                            "${taskProgress?.progress?.completedSteps ?: 0} steps completed",
+                                            color = FoodMindMuted,
+                                            fontSize = 12.sp,
+                                        )
+                                    }
+                                }
+                            }
+                            item {
+                                OutlinedButton(
+                                    onClick = {
+                                        scope.launch {
+                                            cancelling = true; error = null
+                                            runCatching { client.cancelCookingPlanTask(planId) }
+                                                .onSuccess { response ->
+                                                    when {
+                                                        response.isSuccessful && response.body() != null -> {
+                                                            plan = response.body(); taskProgress = null
+                                                        }
+                                                        response.code() == COOKING_PLAN_CANCEL_CONFLICT -> refresh++
+                                                        else -> error = "Could not cancel the background task."
+                                                    }
+                                                }
+                                                .onFailure { error = "Could not cancel the background task." }
+                                            cancelling = false
+                                        }
+                                    },
+                                    enabled = !cancelling,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) { Text(if (cancelling) "Cancelling…" else "Cancel this generation") }
+                            }
+                        }
                         "READY" -> {
                             item {
                                 FoodMindSurfaceCard { Column(Modifier.padding(16.dp)) {
@@ -275,14 +331,24 @@ private fun CookingPlanDetailScreen(client: FoodMindApiClient, planId: String, o
                                 value.planRevision?.let { Text("计划版本 $it", color = FoodMindMuted, fontSize = 12.sp) }
                             }
                             item {
-                                ConfirmationForm(questions = value.confirmationQuestions, onSubmit = { answers ->
-                                    scope.launch {
-                                        runCatching { client.submitCookingPlanDecisions(planId, answers) }
-                                            .onSuccess { newPlan ->
-                                                val nextId = newPlan.planId
-                                                if (nextId != null) context.startActivity(CookingPlanDetailActivity.intent(context, nextId)) else onBack()
-                                            }
+                                ConfirmationForm(
+                                    questions = value.confirmationQuestions,
+                                    purchaseOptionIds = value.decisions
+                                        .filter { it.optionType == "purchase" }
+                                        .mapTo(mutableSetOf()) { it.optionId },
+                                    onPurchase = {
+                                        val shopping = client.createCookingShoppingList(planId)
+                                        context.startActivity(ShoppingListDetailActivity.intent(context, shopping.shoppingListId))
+                                    },
+                                    onSubmit = { answers, asynchronous ->
+                                    val nextId = if (asynchronous) {
+                                        val response = client.submitCookingPlanDecisionsAsync(planId, answers)
+                                        if (!response.isSuccessful) error("Decision submission failed with HTTP ${response.code()}")
+                                        response.body()?.planId
+                                    } else {
+                                        client.submitCookingPlanDecisions(planId, answers).planId
                                     }
+                                    if (nextId != null) context.startActivity(CookingPlanDetailActivity.intent(context, nextId)) else onBack()
                                 })
                             }
                         }
@@ -297,6 +363,18 @@ private fun CookingPlanDetailScreen(client: FoodMindApiClient, planId: String, o
                             if (value.safeAlternatives.isNotEmpty()) {
                                 item { Text("安全替代方案", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
                                 item { FoodMindSurfaceCard { Column(Modifier.padding(16.dp)) { value.safeAlternatives.forEach { Text("• $it", color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp)) } } } }
+                            }
+                            item {
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            runCatching { client.createCookingShoppingList(planId) }
+                                                .onSuccess { shopping -> context.startActivity(ShoppingListDetailActivity.intent(context, shopping.shoppingListId)) }
+                                                .onFailure { error = it.message ?: "Could not create shopping list." }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) { Text("Create or open shopping list") }
                             }
                         }
                         else -> {
@@ -317,12 +395,20 @@ private fun CookingPlanDetailScreen(client: FoodMindApiClient, planId: String, o
 }
 
 @Composable
-private fun ConfirmationForm(questions: List<CookingConfirmationQuestionResponse>, onSubmit: (List<QuestionAnswerRequest>) -> Unit) {
+private fun ConfirmationForm(
+    questions: List<CookingConfirmationQuestionResponse>,
+    purchaseOptionIds: Set<String>,
+    onPurchase: suspend () -> Unit,
+    onSubmit: suspend (List<CookingQuestionAnswer>, Boolean) -> Unit,
+) {
     var choices by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var texts by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var submitting by remember { mutableStateOf(false) }
+    var purchasing by remember { mutableStateOf(false) }
     var submitError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val answers = buildCookingQuestionAnswers(questions, choices, texts)
+    val canSubmit = canSubmitCookingQuestions(questions, choices, texts)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         questions.forEach { question ->
             FoodMindSurfaceCard { Column(Modifier.padding(14.dp)) {
@@ -330,12 +416,28 @@ private fun ConfirmationForm(questions: List<CookingConfirmationQuestionResponse
                 when (question.responseType) {
                     "CHOICE" -> question.options.forEach { option ->
                         val selected = choices[question.questionId] == option.value
+                        val chooseOption: () -> Unit = {
+                            if (option.value in purchaseOptionIds) {
+                                scope.launch {
+                                    purchasing = true; submitError = null
+                                    runCatching { onPurchase() }
+                                        .onFailure { submitError = "Could not create or open the shopping list. Please try again." }
+                                    purchasing = false
+                                }
+                            } else {
+                                choices = choices + (question.questionId to option.value)
+                            }
+                            Unit
+                        }
                         Row(
-                            Modifier.fillMaxWidth().clickable { choices = choices + (question.questionId to option.value) }.padding(vertical = 6.dp),
+                            Modifier.fillMaxWidth().clickable(enabled = !purchasing, onClick = chooseOption).padding(vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            RadioButton(selected, { choices = choices + (question.questionId to option.value) })
-                            Text(option.label, modifier = Modifier.padding(start = 6.dp))
+                            RadioButton(selected, chooseOption, enabled = !purchasing)
+                            Text(
+                                if (purchasing && option.value in purchaseOptionIds) "Opening shopping list…" else option.label,
+                                modifier = Modifier.padding(start = 6.dp),
+                            )
                         }
                     }
                     else -> OutlinedTextField(
@@ -347,20 +449,42 @@ private fun ConfirmationForm(questions: List<CookingConfirmationQuestionResponse
             } }
         }
         submitError?.let { Text(it, color = FoodMindCoral) }
-        Button(onClick = {
-            val answers = buildList {
-                questions.forEach { q ->
-                    when (q.responseType) {
-                        "CHOICE" -> choices[q.questionId]?.let { add(QuestionAnswerRequest(q.questionId, it)) }
-                        else -> (texts[q.questionId] ?: q.suggestedValue.orEmpty()).trim().takeIf(String::isNotEmpty)?.let { add(QuestionAnswerRequest(q.questionId, it)) }
-                    }
+        val submit: (Boolean) -> Unit = { asynchronous ->
+            if (!canSubmit) {
+                submitError = "Answer every required question before submitting."
+            } else {
+                scope.launch {
+                    submitting = true; submitError = null
+                    runCatching { onSubmit(answers, asynchronous) }.onFailure { submitError = "提交确认失败，请重试。" }
+                    submitting = false
                 }
             }
-            scope.launch {
-                submitting = true; submitError = null
-                runCatching { onSubmit(answers) }.onFailure { submitError = "提交确认失败，请重试。" }
-                submitting = false
-            }
-        }, enabled = !submitting, modifier = Modifier.fillMaxWidth()) { Text(if (submitting) "提交中…" else "确认并生成计划") }
+        }
+        Button(onClick = { submit(true) }, enabled = canSubmit && !submitting && !purchasing, modifier = Modifier.fillMaxWidth()) { Text(if (submitting) "提交中…" else "后台确认并生成") }
+        OutlinedButton(onClick = { submit(false) }, enabled = canSubmit && !submitting && !purchasing, modifier = Modifier.fillMaxWidth()) { Text("同步确认并生成") }
     }
+}
+
+internal fun buildCookingQuestionAnswers(
+    questions: List<CookingConfirmationQuestionResponse>,
+    choices: Map<String, String>,
+    texts: Map<String, String>,
+): List<CookingQuestionAnswer> = buildList {
+    questions.forEach { question ->
+        val value = when (question.responseType) {
+            "CHOICE" -> choices[question.questionId]
+            else -> texts[question.questionId] ?: question.suggestedValue
+        }?.trim().orEmpty()
+        if (value.isNotEmpty()) add(CookingQuestionAnswer(question.questionId, value))
+    }
+}
+
+internal fun canSubmitCookingQuestions(
+    questions: List<CookingConfirmationQuestionResponse>,
+    choices: Map<String, String>,
+    texts: Map<String, String>,
+): Boolean {
+    val answers = buildCookingQuestionAnswers(questions, choices, texts)
+    val answeredIds = answers.mapTo(mutableSetOf()) { it.questionId }
+    return answers.isNotEmpty() && questions.none { it.required && it.questionId !in answeredIds }
 }

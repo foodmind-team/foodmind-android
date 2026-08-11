@@ -1,7 +1,7 @@
 package com.foodmind.foodmind_android
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -34,7 +34,7 @@ class MainActivitySmokeTest {
     fun homeRendersAndCookingModeKeepsRecipeManagementInMyRecipes() {
         composeRule.onNodeWithText("FoodMind").assertIsDisplayed()
         composeRule.onNodeWithText("Cooking").performClick()
-        composeRule.onNodeWithText("Start from local recipes").assertIsDisplayed()
+        composeRule.onNodeWithText("Start from cloud recipes").assertIsDisplayed()
         composeRule.onAllNodesWithText("Add recipe").assertCountEquals(0)
     }
 
