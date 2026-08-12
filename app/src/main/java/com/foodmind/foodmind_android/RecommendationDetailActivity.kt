@@ -116,7 +116,7 @@ private fun CandidateCard(
     onShare: (String) -> Unit,
     groups: List<GroupResponse>,
 ) {
-    Card(colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
+    Card(colors = CardDefaults.cardColors(containerColor = FoodMindSurface), border = BorderStroke(1.dp, FoodMindLine)) {
         Column(Modifier.padding(17.dp)) {
             Text("#${candidate.rank ?: index + 1} · ${candidate.recommendationType?.replace('_', ' ') ?: "MATCH"}", color = FoodMindGreen, fontWeight = FontWeight.Bold)
             Text(candidate.mealName ?: "UntitledMeal", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 6.dp))

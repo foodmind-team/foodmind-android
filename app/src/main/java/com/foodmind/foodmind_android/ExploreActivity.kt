@@ -111,7 +111,7 @@ private fun ExploreScreen(
         onRecord = onRecord,
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().background(FoodMindSurface).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     query, { query = it }, modifier = Modifier.weight(1f), singleLine = true,
                     placeholder = { Text("Search meals, places, and products…") },
@@ -121,7 +121,7 @@ private fun ExploreScreen(
                 )
                 IconButton(onClick = { activeQuery = query.trim() }) { Icon(Icons.Outlined.Search, "Search") }
             }
-            Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth().background(FoodMindSurface).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(null to "Recommendations", "FOOD_RECORD" to "Meal", "PLACE" to "Place", "FOOD_PRODUCT" to "Product").forEach { (code, label) ->
                     FilterChip(selected = type == code, onClick = { type = code; if (activeQuery.isBlank() && code != null) activeQuery = query.ifBlank { label } }, label = { Text(label) })
                 }
@@ -171,7 +171,7 @@ private fun ExploreCard(item: ExploreItemResponse, saved: Boolean, onOpen: () ->
     Card(
         onClick = onOpen,
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = FoodMindSurface),
         border = BorderStroke(1.dp, FoodMindLine),
     ) {
         Column {

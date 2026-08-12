@@ -195,7 +195,7 @@ private fun ChatScreen(
                             Column(horizontalAlignment = if (user) Alignment.End else Alignment.Start, modifier = Modifier.fillMaxWidth()) {
                                 Card(
                                     shape = RoundedCornerShape(18.dp),
-                                    colors = CardDefaults.cardColors(containerColor = if (user) FoodMindGreenDark else Color.White),
+                                    colors = CardDefaults.cardColors(containerColor = if (user) FoodMindGreenDark else FoodMindSurface),
                                     border = if (user) null else BorderStroke(1.dp, FoodMindLine),
                                 ) { Text(message.content.orEmpty(), Modifier.padding(15.dp), color = if (user) Color.White else FoodMindInk) }
                                 if (message.sources.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 5.dp)) {
@@ -205,7 +205,7 @@ private fun ChatScreen(
                         }
                     }
                     state.errorMessage?.let { Text(it, Modifier.padding(horizontal = 16.dp), color = FoodMindCoral) }
-                    if (showSources) Column(Modifier.fillMaxWidth().background(Color.White).padding(12.dp)) {
+                    if (showSources) Column(Modifier.fillMaxWidth().background(FoodMindSurface).padding(12.dp)) {
                         OutlinedTextField(
                             sourceQuery, { sourceQuery = it; onSearch(it) }, modifier = Modifier.fillMaxWidth(),
                             label = { Text("Search FoodMind sources to attach") }, singleLine = true,
@@ -219,7 +219,7 @@ private fun ChatScreen(
                     if (state.attachedReferences.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         state.attachedReferences.forEach { reference -> AssistChip(onClick = { onRemoveReference(reference.id) }, label = { Text(reference.title ?: reference.sourceType ?: "Source") }, trailingIcon = { Icon(Icons.Outlined.Close, "Remove") }) }
                     }
-                    Row(Modifier.fillMaxWidth().background(Color.White).padding(10.dp), verticalAlignment = Alignment.Bottom) {
+                    Row(Modifier.fillMaxWidth().background(FoodMindSurface).padding(10.dp), verticalAlignment = Alignment.Bottom) {
                         IconButton(onClick = { showSources = !showSources }) { Icon(Icons.Outlined.AttachFile, "Attach source") }
                         OutlinedTextField(draft, { draft = it }, placeholder = { Text("Send a message…") }, modifier = Modifier.weight(1f), maxLines = 4)
                         IconButton(onClick = { onSend(draft); draft = "" }, enabled = draft.isNotBlank() && !state.isSending) { Icon(Icons.AutoMirrored.Outlined.Send, "Send") }

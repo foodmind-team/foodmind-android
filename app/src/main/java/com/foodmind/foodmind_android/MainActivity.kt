@@ -4,7 +4,6 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -73,7 +72,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         FoodMindSession.initialize(this)
         val bypassAuthForTest = BuildConfig.DEBUG && intent.getBooleanExtra(EXTRA_BYPASS_AUTH_FOR_TEST, false)
         if (!bypassAuthForTest && FoodMindSession.tokenStore.accessToken().isNullOrBlank() && FoodMindSession.tokenStore.refreshToken().isNullOrBlank()) {
@@ -90,7 +88,7 @@ class MainActivity : ComponentActivity() {
                     onNavigate = ::openFoodMindRoot,
                     onRecord = { startActivity(RecordEditorActivity.intent(this, "FOOD", null)) },
                     onChat = { startActivity(Intent(this, ChatListActivity::class.java)) },
-                    onCook = { startActivity(Intent(this, RecipeLibraryActivity::class.java)) },
+                    onCook = { startActivity(Intent(this, CookingHomeActivity::class.java)) },
                     onManualCook = { startActivity(Intent(this, ManualCookingActivity::class.java)) },
                     onHistory = { startActivity(Intent(this, HistoryActivity::class.java)) },
                     onDashboard = { startActivity(Intent(this, DashboardActivity::class.java)) },
@@ -158,7 +156,7 @@ private fun HomeScreen(
                     FilterChip(state.mode == HomeMode.COOKING, { onModeChange(HomeMode.COOKING) }, label = { Text("Cooking") })
                 }
                 Text(if (state.mode == HomeMode.RECOMMEND) "Decide dinner with confidence." else "Cook with ingredients you have.", fontSize = 31.sp, fontWeight = FontWeight.ExtraBold, color = FoodMindInk, modifier = Modifier.padding(top = 12.dp))
-                Text(if (state.mode == HomeMode.RECOMMEND) "One clear choice, with reasons you can inspect." else "Create a backend-supported, actionable plan from local recipes or manual ingredients.", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp))
+                Text(if (state.mode == HomeMode.RECOMMEND) "One clear choice, with reasons you can inspect." else "Create a backend-supported, actionable plan from account recipes or manual ingredients.", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp))
             }
             if (state.mode == HomeMode.RECOMMEND) {
                 item {
@@ -183,7 +181,7 @@ private fun HomeScreen(
                 if (state.hasResult) item {
                     Card(
                         onClick = { state.recommendation?.sessionId?.let(onRecommendation) },
-                        shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine),
+                        shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = FoodMindSurface), border = BorderStroke(1.dp, FoodMindLine),
                     ) {
                         Column(Modifier.padding(18.dp)) {
                             Text("FoodMind Recommendations", color = FoodMindGreen, fontWeight = FontWeight.Bold)
@@ -195,7 +193,7 @@ private fun HomeScreen(
                 }
                 state.errorMessage?.let { item { FoodMindSurfaceCard { Column { Text(it, color = FoodMindCoral); TextButton(onClick = { onGenerate(request) }) { Text("Try again") } } } } }
             } else item {
-                FoodMindSurfaceCard { Column { Text("Choose a cooking starting point", fontSize = 20.sp, fontWeight = FontWeight.Bold); Text("Local recipes are never presented as server data. Generation sends only ingredients and constraints.", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp)); Button(onClick = onCook, modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) { Text("Start from local recipes") }; OutlinedButton(onClick = onManualCook, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Enter ingredients manually") } } }
+                FoodMindSurfaceCard { Column { Text("Choose a cooking starting point", fontSize = 20.sp, fontWeight = FontWeight.Bold); Text("Pick recipes saved to your account, or enter ingredients manually. Recipe mode sends exact IDs so the backend can reload recipes and current inventory.", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp)); Button(onClick = onCook, modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) { Text("Start cooking") }; OutlinedButton(onClick = onManualCook, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Enter ingredients manually") } } }
             }
             item { Text("Shortcuts", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
             item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { HomeQuick("History", "Recently eaten and drunk", Icons.Outlined.History, Modifier.weight(1f), onHistory); HomeQuick("Food insights", "Dashboard & weekly recap", Icons.Outlined.BarChart, Modifier.weight(1f), onDashboard) } }
@@ -206,7 +204,7 @@ private fun HomeScreen(
 
 @Composable
 private fun HomeQuick(title: String, support: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
-    Card(onClick = onClick, modifier = modifier, colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
+    Card(onClick = onClick, modifier = modifier, colors = CardDefaults.cardColors(containerColor = FoodMindSurface), border = BorderStroke(1.dp, FoodMindLine)) {
         Column(Modifier.padding(14.dp)) { Icon(icon, null, tint = FoodMindGreen); Text(title, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 9.dp)); Text(support, color = FoodMindMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp)) }
     }
 }

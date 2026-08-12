@@ -60,7 +60,7 @@ private fun ChatListScreen(client: FoodMindApiClient, onBack: () -> Unit, onOpen
                 item { Text("FoodMind conversations", fontWeight = FontWeight.ExtraBold); error?.let { Text(it, color = FoodMindCoral) } }
                 if (sessions.isEmpty() && error == null) item { FoodMindSurfaceCard { Text("No conversations yet. Use the button above to start one.") } }
                 items(sessions, key = { it.id.orEmpty() }) { session ->
-                    Card(onClick = { onOpen(session.id) }, colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
+                    Card(onClick = { onOpen(session.id) }, colors = CardDefaults.cardColors(containerColor = FoodMindSurface), border = BorderStroke(1.dp, FoodMindLine)) {
                         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                             FoodMindAvatar("F")
                             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) { Text(session.title ?: "FoodMind Assistant", fontWeight = FontWeight.Bold); Text(formatFoodMindTimestamp(session.updatedAt), color = FoodMindMuted) }

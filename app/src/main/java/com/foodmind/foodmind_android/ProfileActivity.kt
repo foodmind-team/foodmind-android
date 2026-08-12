@@ -185,7 +185,7 @@ private fun ProfileScreen(
                         Card(
                             onClick = { item.sessionId?.let(onRecommendation) },
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = FoodMindSurface),
                             border = BorderStroke(1.dp, FoodMindLine),
                         ) {
                             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -217,7 +217,7 @@ private fun ProfileScreen(
 
 @Composable
 private fun ProfileAction(title: String, support: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
-    Card(onClick = onClick, modifier = modifier, colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
+    Card(onClick = onClick, modifier = modifier, colors = CardDefaults.cardColors(containerColor = FoodMindSurface), border = BorderStroke(1.dp, FoodMindLine)) {
         Column(Modifier.padding(16.dp)) {
             Icon(icon, null, tint = FoodMindGreen)
             Text(title, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))

@@ -115,7 +115,7 @@ private fun RecordCollectionScreen(client: FoodMindApiClient, onBack: () -> Unit
 
 @Composable
 private fun RecordListCard(title: String, context: String?, occurredAt: String, rating: Double?, onClick: () -> Unit) {
-    Card(onClick = onClick, colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
+    Card(onClick = onClick, colors = CardDefaults.cardColors(containerColor = FoodMindSurface), border = BorderStroke(1.dp, FoodMindLine)) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Text(title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
             Text(listOfNotNull(context, rating?.let { "Rating $it" }).joinToString(" · "), color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp))

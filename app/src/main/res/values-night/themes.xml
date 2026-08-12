@@ -1,15 +1,15 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Base.Theme.Foodmindandroid" parent="Theme.Material3.Light.NoActionBar">
-        <item name="colorPrimary">@color/foodmind_green_700</item>
-        <item name="colorOnPrimary">@color/white</item>
-        <item name="colorSecondary">@color/foodmind_lime</item>
-        <item name="colorSurface">@color/white</item>
+    <style name="Base.Theme.Foodmindandroid" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/foodmind_lime</item>
+        <item name="colorOnPrimary">@color/foodmind_primary_ink</item>
+        <item name="colorSecondary">@color/foodmind_green_700</item>
+        <item name="colorSurface">@color/foodmind_surface</item>
         <item name="colorOnSurface">@color/foodmind_ink</item>
         <item name="android:fontFamily">sans</item>
         <item name="android:statusBarColor">@color/foodmind_paper</item>
-        <item name="android:navigationBarColor">@color/white</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
+        <item name="android:navigationBarColor">@color/foodmind_paper</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>
     </style>
 
     <style name="Theme.Foodmindandroid" parent="Base.Theme.Foodmindandroid" />

@@ -112,7 +112,7 @@ private fun SavedScreen(
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            PrimaryTabRow(selectedTabIndex = tab, containerColor = Color.White, contentColor = FoodMindGreen) {
+            PrimaryTabRow(selectedTabIndex = tab, containerColor = FoodMindSurface, contentColor = FoodMindLime) {
                 Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Want to Try ${saved.size}", fontWeight = FontWeight.Bold) })
                 Tab(selected = tab == 1, onClick = { tab = 1; recipes = RecipeDraftStore.list() }, text = { Text("Local recipes ${recipes.size}", fontWeight = FontWeight.Bold) })
             }
@@ -170,7 +170,7 @@ private fun SavedIdeas(
             Card(
                 onClick = { if (item.sourceAvailable) onOpen(item.sourceType, item.sourceId) },
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = FoodMindSurface),
                 border = BorderStroke(1.dp, FoodMindLine),
             ) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -215,7 +215,7 @@ private fun RecipeDrafts(
             Card(
                 onClick = { onEdit(recipe.id) },
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = FoodMindSurface),
                 border = BorderStroke(1.dp, FoodMindLine),
             ) {
                 Column(Modifier.padding(16.dp)) {

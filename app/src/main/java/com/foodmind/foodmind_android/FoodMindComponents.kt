@@ -34,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -91,7 +92,11 @@ fun FoodMindRootScaffold(
             TopAppBar(
                 title = { Text(title, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = FoodMindInk) },
                 actions = topActions,
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = FoodMindPaper,
+                    titleContentColor = FoodMindInk,
+                    actionIconContentColor = FoodMindMuted,
+                ),
             )
         },
         floatingActionButton = {
@@ -99,14 +104,14 @@ fun FoodMindRootScaffold(
                 FloatingActionButton(
                     onClick = it,
                     shape = RoundedCornerShape(18.dp),
-                    containerColor = FoodMindCoral,
-                    contentColor = Color.White,
+                    containerColor = FoodMindLime,
+                    contentColor = Color(0xFF11170F),
                 ) { Icon(Icons.Outlined.Add, contentDescription = "Add record") }
             }
         },
         bottomBar = {
             NavigationBar(
-                containerColor = Color.White,
+                containerColor = FoodMindPaper,
                 tonalElevation = 0.dp,
                 windowInsets = WindowInsets.navigationBars,
             ) {
@@ -116,6 +121,13 @@ fun FoodMindRootScaffold(
                         onClick = { onNavigate(item) },
                         icon = { Icon(item.icon, contentDescription = item.label) },
                         label = { Text(item.label, fontSize = 11.sp, fontWeight = if (item == selected) FontWeight.Bold else FontWeight.Medium) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = FoodMindLime,
+                            selectedTextColor = FoodMindLime,
+                            indicatorColor = FoodMindSurfaceRaised,
+                            unselectedIconColor = FoodMindMuted,
+                            unselectedTextColor = FoodMindMuted,
+                        ),
                     )
                 }
             }
@@ -142,7 +154,12 @@ fun FoodMindDetailScaffold(
                 title = { Text(title, fontWeight = FontWeight.Bold, color = FoodMindInk) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") } },
                 actions = actions,
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = FoodMindPaper,
+                    navigationIconContentColor = FoodMindInk,
+                    titleContentColor = FoodMindInk,
+                    actionIconContentColor = FoodMindMuted,
+                ),
             )
         },
         content = content,
@@ -154,16 +171,16 @@ fun FoodMindSurfaceCard(modifier: Modifier = Modifier, content: @Composable () -
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, FoodMindLine),
+        colors = CardDefaults.cardColors(containerColor = FoodMindSurface),
+        border = BorderStroke(1.dp, FoodMindLineSoft),
     ) { Box(Modifier.fillMaxWidth().padding(16.dp)) { content() } }
 }
 
 @Composable
 fun FoodMindAvatar(label: String, modifier: Modifier = Modifier) {
     Box(
-        modifier = modifier.background(FoodMindGreen, CircleShape).padding(horizontal = 12.dp, vertical = 9.dp),
-    ) { Text(label.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold) }
+        modifier = modifier.background(FoodMindLime, CircleShape).padding(horizontal = 12.dp, vertical = 9.dp),
+    ) { Text(label.take(1).uppercase(), color = Color(0xFF11170F), fontWeight = FontWeight.Bold) }
 }
 
 fun ComponentActivity.foodMindApiClient(): com.foodmind.foodmind_android.core.network.FoodMindApiClient {
