@@ -34,7 +34,8 @@ class MainActivitySmokeTest {
     fun homeRendersAndCookingModeKeepsRecipeManagementInMyRecipes() {
         composeRule.onNodeWithText("FoodMind").assertIsDisplayed()
         composeRule.onNodeWithText("Cooking").performClick()
-        composeRule.onNodeWithText("Start from cloud recipes").assertIsDisplayed()
+        composeRule.onNodeWithText("Choose a cooking starting point").assertIsDisplayed()
+        composeRule.onNodeWithText("Start cooking").assertIsDisplayed()
         composeRule.onAllNodesWithText("Add recipe").assertCountEquals(0)
     }
 

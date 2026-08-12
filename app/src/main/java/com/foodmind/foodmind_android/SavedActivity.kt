@@ -64,7 +64,7 @@ class SavedActivity : ComponentActivity() {
                     onNavigate = ::openFoodMindRoot,
                     onAddRecipe = { startActivity(Intent(this, RecipeEditorActivity::class.java)) },
                     onEditRecipe = { startActivity(RecipeEditorActivity.intent(this, it)) },
-                    onCook = { startActivity(Intent(this, RecipeLibraryActivity::class.java)) },
+                    onCook = { startActivity(Intent(this, CookingHomeActivity::class.java)) },
                     onOpenSource = { type, id -> startActivity(CatalogueDetailActivity.intent(this, type, id)) },
                 )
             }

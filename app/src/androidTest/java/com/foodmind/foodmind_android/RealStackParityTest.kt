@@ -3,11 +3,14 @@ package com.foodmind.foodmind_android
 import android.content.Intent
 import android.app.Activity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -52,20 +55,15 @@ class RealStackParityTest {
         composeRule.onNodeWithText("Password").performTextInput("Real-stack-password-2026")
         composeRule.onNodeWithText("Sign in").performClick()
         composeRule.waitUntil(timeoutMillis = 15_000) {
-            composeRule.onAllNodesWithText("Sign in").fetchSemanticsNodes().isEmpty()
+            runCatching { composeRule.onAllNodesWithText("Email").fetchSemanticsNodes().isEmpty() }
+                .getOrDefault(true)
         }
 
-        launch(InventoryActivity::class.java)
-        composeRule.waitUntil(timeoutMillis = 15_000) {
-            composeRule.onAllNodesWithText("E2E firm tofu", substring = true).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeRule.onAllNodesWithText("E2E firm tofu", substring = true).onFirst().assertIsDisplayed()
+        launch(CookingInventoryActivity::class.java)
+        assertLazyContentIsVisible("E2E firm tofu")
 
-        launch(RecipeLibraryActivity::class.java)
-        composeRule.waitUntil(timeoutMillis = 15_000) {
-            composeRule.onAllNodesWithText("E2E tofu bowl", substring = true).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeRule.onAllNodesWithText("E2E tofu bowl", substring = true).onFirst().assertIsDisplayed()
+        launch(CookingHomeActivity::class.java)
+        assertLazyContentIsVisible("E2E tofu bowl")
 
         launch(ShoppingListsActivity::class.java)
         composeRule.onNodeWithText("Shopping lists").assertIsDisplayed()
@@ -76,5 +74,16 @@ class RealStackParityTest {
 
     private fun launch(activity: Class<out Activity>) {
         scenarios += ActivityScenario.launch<Activity>(Intent(ApplicationProvider.getApplicationContext(), activity))
+    }
+
+    private fun assertLazyContentIsVisible(text: String) {
+        composeRule.waitUntil(timeoutMillis = 15_000) {
+            runCatching {
+                composeRule.onAllNodes(hasScrollAction()).onFirst()
+                    .performScrollToNode(hasText(text, substring = true))
+                true
+            }.getOrDefault(false)
+        }
+        composeRule.onAllNodesWithText(text, substring = true).onFirst().assertIsDisplayed()
     }
 }
