@@ -700,3 +700,27 @@ private fun BoardLane(
         }
     } }
 }
+
+internal fun buildCookingQuestionAnswers(
+    questions: List<CookingConfirmationQuestionResponse>,
+    choices: Map<String, String>,
+    texts: Map<String, String>,
+): List<QuestionAnswerRequest> = buildList {
+    questions.forEach { question ->
+        val value = when (question.responseType) {
+            "CHOICE" -> choices[question.questionId]
+            else -> texts[question.questionId] ?: question.suggestedValue
+        }?.trim().orEmpty()
+        if (value.isNotEmpty()) add(QuestionAnswerRequest(question.questionId, value))
+    }
+}
+
+internal fun canSubmitCookingQuestions(
+    questions: List<CookingConfirmationQuestionResponse>,
+    choices: Map<String, String>,
+    texts: Map<String, String>,
+): Boolean {
+    val answers = buildCookingQuestionAnswers(questions, choices, texts)
+    val answeredIds = answers.mapTo(mutableSetOf()) { it.questionId }
+    return answers.isNotEmpty() && questions.none { it.required && it.questionId !in answeredIds }
+}

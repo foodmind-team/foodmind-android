@@ -47,10 +47,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
-import com.foodmind.foodmind_android.core.network.FoodMindSession
+import com.foodmind.foodmind_android.core.network.UserRecipeResponse
 import com.foodmind.foodmind_android.core.network.WantToTryResponse
-import com.foodmind.foodmind_android.domain.repository.RecipeDraft
-import com.foodmind.foodmind_android.domain.repository.RecipeDraftStore
 import kotlinx.coroutines.launch
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -58,8 +56,6 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 class SavedActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        FoodMindSession.initialize(this)
-        RecipeDraftStore.initialize(this, FoodMindSession.tokenStore.userId())
         val client = foodMindApiClient()
         setContent {
             FoodMindTheme {
@@ -87,19 +83,21 @@ private fun SavedScreen(
 ) {
     var tab by remember { mutableIntStateOf(0) }
     var saved by remember { mutableStateOf<List<WantToTryResponse>>(emptyList()) }
-    var recipes by remember { mutableStateOf(RecipeDraftStore.list()) }
+    var recipes by remember { mutableStateOf<List<UserRecipeResponse>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var refreshKey by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { recipes = RecipeDraftStore.list() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refreshKey++ }
 
     LaunchedEffect(refreshKey) {
         loading = true
         runCatching { client.wantToTry().items }
             .onSuccess { saved = it; error = null }
             .onFailure { error = "Could not load your Want to Try list." }
-        recipes = RecipeDraftStore.list()
+        runCatching { client.recipes().items }
+            .onSuccess { recipes = it }
+            .onFailure { error = "Could not load your cloud recipes." }
         loading = false
     }
 
@@ -114,7 +112,7 @@ private fun SavedScreen(
         Column(Modifier.fillMaxSize().padding(padding)) {
             PrimaryTabRow(selectedTabIndex = tab, containerColor = FoodMindSurface, contentColor = FoodMindLime) {
                 Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Want to Try ${saved.size}", fontWeight = FontWeight.Bold) })
-                Tab(selected = tab == 1, onClick = { tab = 1; recipes = RecipeDraftStore.list() }, text = { Text("Local recipes ${recipes.size}", fontWeight = FontWeight.Bold) })
+                Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Cloud recipes ${recipes.size}", fontWeight = FontWeight.Bold) })
             }
             when {
                 loading -> CircularProgressIndicator(Modifier.padding(24.dp))
@@ -130,12 +128,18 @@ private fun SavedScreen(
                         scope.launch { runCatching { client.deleteWantToTry(item.id) }.onFailure { error = "Could not remove this item. Refresh and try again." } }
                     },
                 )
-                else -> RecipeDrafts(
+                else -> CloudRecipes(
                     items = recipes,
                     onAdd = onAddRecipe,
                     onCook = onCook,
                     onEdit = onEditRecipe,
-                    onDelete = { id -> RecipeDraftStore.delete(id); recipes = RecipeDraftStore.list() },
+                    onDelete = { id ->
+                        scope.launch {
+                            runCatching { client.deleteRecipe(id) }
+                                .onSuccess { recipes = recipes.filterNot { it.id == id } }
+                                .onFailure { error = "Could not delete this recipe." }
+                        }
+                    },
                 )
             }
         }
@@ -189,8 +193,8 @@ private fun SavedIdeas(
 }
 
 @Composable
-private fun RecipeDrafts(
-    items: List<RecipeDraft>,
+private fun CloudRecipes(
+    items: List<UserRecipeResponse>,
     onAdd: () -> Unit,
     onCook: () -> Unit,
     onEdit: (String) -> Unit,
@@ -205,13 +209,13 @@ private fun RecipeDrafts(
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Recipes you can cook", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold, color = FoodMindInk)
-                    Text("Drafts stay on this device and are separated by account.", color = FoodMindMuted)
+                    Text("Recipes are persisted by Backend and shared with Web.", color = FoodMindMuted)
                 }
                 Button(onClick = onCook) { Icon(Icons.Outlined.RestaurantMenu, null); Spacer(Modifier.width(6.dp)); Text("Start cooking") }
             }
         }
-        if (items.isEmpty()) item { FoodMindSurfaceCard { Text("No local recipes yet.") } }
-        items(items, key = RecipeDraft::id) { recipe ->
+        if (items.isEmpty()) item { FoodMindSurfaceCard { Text("No cloud recipes yet.") } }
+        items(items, key = UserRecipeResponse::id) { recipe ->
             Card(
                 onClick = { onEdit(recipe.id) },
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
@@ -222,7 +226,7 @@ private fun RecipeDrafts(
                     Row(verticalAlignment = Alignment.Top) {
                         Column(Modifier.weight(1f)) {
                             Text(recipe.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = FoodMindInk)
-                            Text("${recipe.servings} servings · ${recipe.minutes} minutes · ${recipe.category}", color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp))
+                            Text("${recipe.servings} servings · Backend recipe", color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp))
                         }
                         IconButton(onClick = { onDelete(recipe.id) }) { Icon(Icons.Outlined.DeleteOutline, contentDescription = "Delete recipe") }
                     }
@@ -233,6 +237,6 @@ private fun RecipeDrafts(
                 }
             }
         }
-        item { TextButton(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.Add, null); Text("Add local recipe") } }
+        item { TextButton(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.Add, null); Text("Add cloud recipe") } }
     }
 }

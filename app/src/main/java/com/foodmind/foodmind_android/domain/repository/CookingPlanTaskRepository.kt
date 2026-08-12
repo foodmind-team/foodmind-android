@@ -56,7 +56,7 @@ class CookingPlanTaskRepository(
         planId: String,
         pollIntervalMillis: Long = 2000,
         onProgress: (CookingPlanTaskResponse) -> Unit = {},
-    ): Result<CookingPlanResponse> {
+    ): Result<CookingPlanResponse> = runCatching {
         while (true) {
             val response = getTask(planId)
             when {
@@ -65,13 +65,12 @@ class CookingPlanTaskRepository(
                     delay(pollIntervalMillis)
                 }
                 response.code() == COOKING_PLAN_TASK_NOT_FOUND ->
-                    return runCatching { readPlan(planId) }
+                    return@runCatching readPlan(planId)
                 else ->
-                    return Result.failure(
-                        IllegalStateException("Unexpected task status HTTP ${response.code()}"),
-                    )
+                    throw IllegalStateException("Unexpected task status HTTP ${response.code()}")
             }
         }
+        error("Polling loop ended unexpectedly")
     }
 
     /** Cancels an in-flight task; 409 (not cancellable) is surfaced as [CookingPlanCancelConflictException]. */

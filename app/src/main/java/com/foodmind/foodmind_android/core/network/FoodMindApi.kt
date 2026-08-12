@@ -238,18 +238,18 @@ interface FoodMindApi {
     @POST("recipes")
     suspend fun createUserRecipe(@Body request: UserRecipeRequest): UserRecipeResponse
 
-    @GET("recipes/{recipeId}")
-    suspend fun userRecipe(@Path("recipeId") recipeId: String): UserRecipeResponse
+    @GET("recipes/{id}")
+    suspend fun userRecipe(@Path("id") recipeId: String): UserRecipeResponse
 
-    @PUT("recipes/{recipeId}")
+    @PUT("recipes/{id}")
     suspend fun updateUserRecipe(
-        @Path("recipeId") recipeId: String,
+        @Path("id") recipeId: String,
         @Header("If-Match") version: String,
         @Body request: UserRecipeRequest,
     ): UserRecipeResponse
 
-    @DELETE("recipes/{recipeId}")
-    suspend fun deleteUserRecipe(@Path("recipeId") recipeId: String)
+    @DELETE("recipes/{id}")
+    suspend fun deleteUserRecipe(@Path("id") recipeId: String)
 
     @POST("recipe-imports")
     suspend fun createRecipeImport(@Body request: CreateRecipeImportRequest): RecipeImportResponse
@@ -340,6 +340,9 @@ interface FoodMindApi {
 
     @POST("inventory/lots")
     suspend fun createInventoryLot(@Body request: InventoryLotRequest): InventoryLotResponse
+
+    @GET("inventory/lots/{lotId}")
+    suspend fun inventoryLot(@Path("lotId") lotId: String): InventoryLotResponse
 
     @PUT("inventory/lots/{lotId}")
     suspend fun updateInventoryLot(

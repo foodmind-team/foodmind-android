@@ -10,6 +10,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -45,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -160,6 +163,7 @@ class ChatActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ChatScreen(
     state: ChatUiState,
@@ -198,8 +202,11 @@ private fun ChatScreen(
                                     colors = CardDefaults.cardColors(containerColor = if (user) FoodMindGreenDark else FoodMindSurface),
                                     border = if (user) null else BorderStroke(1.dp, FoodMindLine),
                                 ) { Text(message.content.orEmpty(), Modifier.padding(15.dp), color = if (user) Color.White else FoodMindInk) }
-                                if (message.sources.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 5.dp)) {
-                                    message.sources.take(3).forEach { source -> AssistChip(onClick = {}, label = { Text(source.title ?: source.sourceType ?: "Source") }) }
+                                if (message.sources.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 5.dp)) {
+                                    val ctx = LocalContext.current
+                                    message.sources.forEach { source -> AssistChip(onClick = {
+                                        source.sourceType?.let { type -> source.sourceId?.let { id -> ctx.startActivity(CatalogueDetailActivity.intent(ctx, type, id)) } }
+                                    }, label = { Text(source.title ?: source.sourceType ?: "Source") }) }
                                 }
                             }
                         }

@@ -255,6 +255,12 @@ class FoodMindApiClient(
     suspend fun updateUserRecipe(recipeId: String, version: Long, request: UserRecipeRequest) =
         api.updateUserRecipe(recipeId, "\"$version\"", request)
     suspend fun deleteUserRecipe(recipeId: String) = api.deleteUserRecipe(recipeId)
+    suspend fun recipes(page: Int = 0) = userRecipes(page)
+    suspend fun recipe(id: String) = userRecipe(id)
+    suspend fun createRecipe(request: UserRecipeRequest) = createUserRecipe(request)
+    suspend fun updateRecipe(id: String, version: Long, request: UserRecipeRequest) =
+        updateUserRecipe(id, version, request)
+    suspend fun deleteRecipe(id: String) = deleteUserRecipe(id)
     suspend fun createRecipeImport(text: String) = api.createRecipeImport(CreateRecipeImportRequest(text))
     suspend fun recipeImport(importId: String) = api.recipeImport(importId)
     suspend fun answerRecipeImport(importId: String, version: Long, answers: List<RecipeImportAnswerRequest>) =
@@ -290,10 +296,15 @@ class FoodMindApiClient(
 
     suspend fun inventoryLots(page: Int = 0) = api.inventoryLots(page)
     suspend fun createInventoryLot(request: InventoryLotRequest) = api.createInventoryLot(request)
+    suspend fun inventoryLot(lotId: String) = api.inventoryLot(lotId)
     suspend fun updateInventoryLot(lot: InventoryLotResponse, request: InventoryLotRequest) =
         api.updateInventoryLot(lot.lotId, "\"${lot.version}\"", request)
+    suspend fun updateInventoryLot(lotId: String, version: Long, request: InventoryLotRequest) =
+        api.updateInventoryLot(lotId, "\"$version\"", request)
     suspend fun archiveInventoryLot(lot: InventoryLotResponse) =
         api.archiveInventoryLot(lot.lotId, "\"${lot.version}\"")
+    suspend fun archiveInventoryLot(lotId: String, version: Long) =
+        api.archiveInventoryLot(lotId, "\"$version\"")
 
     suspend fun cookingPlan(planId: String) = api.cookingPlan(planId)
     suspend fun cookingPlanHistory(page: Int = 0) = api.cookingPlanHistory(page)
