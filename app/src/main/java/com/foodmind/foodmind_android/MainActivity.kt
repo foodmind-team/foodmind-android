@@ -60,7 +60,6 @@ import com.foodmind.foodmind_android.core.network.GenerateRecommendationRequest
 import com.foodmind.foodmind_android.core.network.GroupResponse
 import com.foodmind.foodmind_android.core.network.RecommendationConstraintsRequest
 import com.foodmind.foodmind_android.core.network.UserPreferencesResponse
-import com.foodmind.foodmind_android.domain.repository.RecipeDraftStore
 import com.foodmind.foodmind_android.domain.repository.RecommendationRepositoryImpl
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -79,7 +78,6 @@ class MainActivity : ComponentActivity() {
         if (!bypassAuthForTest && FoodMindSession.tokenStore.accessToken().isNullOrBlank() && FoodMindSession.tokenStore.refreshToken().isNullOrBlank()) {
             authLauncher.launch(Intent(this, LoginActivity::class.java))
         }
-        RecipeDraftStore.initialize(this, FoodMindSession.tokenStore.userId())
         val apiClient = foodMindApiClient()
         viewModel.setRecommendationRepository(RecommendationRepositoryImpl(apiClient::generateRecommendation))
         setContent {
@@ -92,6 +90,9 @@ class MainActivity : ComponentActivity() {
                     onChat = { startActivity(Intent(this, ChatListActivity::class.java)) },
                     onCook = { startActivity(Intent(this, RecipeLibraryActivity::class.java)) },
                     onManualCook = { startActivity(Intent(this, ManualCookingActivity::class.java)) },
+                    onInventory = { startActivity(Intent(this, InventoryActivity::class.java)) },
+                    onShopping = { startActivity(Intent(this, ShoppingListsActivity::class.java)) },
+                    onRecipeImport = { startActivity(Intent(this, RecipeImportActivity::class.java)) },
                     onHistory = { startActivity(Intent(this, HistoryActivity::class.java)) },
                     onDashboard = { startActivity(Intent(this, DashboardActivity::class.java)) },
                     onRecommendation = { startActivity(RecommendationDetailActivity.intent(this, it)) },
@@ -115,6 +116,9 @@ private fun HomeScreen(
     onChat: () -> Unit,
     onCook: () -> Unit,
     onManualCook: () -> Unit,
+    onInventory: () -> Unit,
+    onShopping: () -> Unit,
+    onRecipeImport: () -> Unit,
     onHistory: () -> Unit,
     onDashboard: () -> Unit,
     onRecommendation: (String) -> Unit,
@@ -159,7 +163,7 @@ private fun HomeScreen(
                     FilterChip(state.mode == HomeMode.COOKING, { onModeChange(HomeMode.COOKING) }, label = { Text("Cooking") })
                 }
                 Text(if (state.mode == HomeMode.RECOMMEND) "Decide dinner with confidence." else "Cook with ingredients you have.", fontSize = 31.sp, fontWeight = FontWeight.ExtraBold, color = FoodMindInk, modifier = Modifier.padding(top = 12.dp))
-                Text(if (state.mode == HomeMode.RECOMMEND) "One clear choice, with reasons you can inspect." else "Create a backend-supported, actionable plan from local recipes or manual ingredients.", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp))
+                Text(if (state.mode == HomeMode.RECOMMEND) "One clear choice, with reasons you can inspect." else "Create a backend-supported plan from cloud recipes, inventory, or manual ingredients.", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp))
             }
             if (state.mode == HomeMode.RECOMMEND) {
                 item {
@@ -196,7 +200,7 @@ private fun HomeScreen(
                 }
                 state.errorMessage?.let { item { FoodMindSurfaceCard { Column { Text(it, color = FoodMindCoral); TextButton(onClick = { onGenerate(request) }) { Text("Try again") } } } } }
             } else item {
-                FoodMindSurfaceCard { Column { Text("Choose a cooking starting point", fontSize = 20.sp, fontWeight = FontWeight.Bold); Text("Local recipes are never presented as server data. Generation sends only ingredients and constraints.", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp)); Button(onClick = onCook, modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) { Text("Start from local recipes") }; OutlinedButton(onClick = onManualCook, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Enter ingredients manually") } } }
+                FoodMindSurfaceCard { Column { Text("Choose a cooking starting point", fontSize = 20.sp, fontWeight = FontWeight.Bold); Text("Cloud recipes, inventory, and shopping lists use the same Backend data as Web.", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp)); Button(onClick = onCook, modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) { Text("Start from cloud recipes") }; OutlinedButton(onClick = onRecipeImport, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Import recipes with Agent") }; OutlinedButton(onClick = onInventory, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Manage inventory") }; OutlinedButton(onClick = onShopping, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Open shopping lists") }; OutlinedButton(onClick = onManualCook, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Enter ingredients manually") } } }
             }
             item { Text("Shortcuts", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
             item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { HomeQuick("History", "Recently eaten and drunk", Icons.Outlined.History, Modifier.weight(1f), onHistory); HomeQuick("Food insights", "Dashboard & weekly recap", Icons.Outlined.BarChart, Modifier.weight(1f), onDashboard) } }

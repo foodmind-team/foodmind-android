@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -11,6 +13,21 @@ val debugApiBaseUrl = providers.gradleProperty("foodmind.debugApiBaseUrl")
 val releaseApiBaseUrl = providers.environmentVariable("FOODMIND_API_BASE_URL")
     .orElse(providers.gradleProperty("foodmind.apiBaseUrl"))
     .orElse("https://api.foodmind.example/api/v1/")
+
+val validateReleaseApiBaseUrl by tasks.registering {
+    group = "verification"
+    description = "Rejects missing, insecure, or placeholder Android release API origins."
+    doLast {
+        val value = releaseApiBaseUrl.get()
+        val uri = runCatching { URI(value) }
+            .getOrElse { throw GradleException("FOODMIND_API_BASE_URL is not a valid URI.", it) }
+        if (uri.scheme != "https" || uri.host.isNullOrBlank() || uri.host.endsWith(".example") || !uri.path.endsWith("/api/v1/")) {
+            throw GradleException(
+                "Release FOODMIND_API_BASE_URL must use HTTPS, must not be an example domain, and must end with /api/v1/.",
+            )
+        }
+    }
+}
 
 android {
     namespace = "com.foodmind.foodmind_android"
@@ -81,4 +98,8 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+}
+
+tasks.matching { it.name in setOf("preReleaseBuild", "assembleRelease", "bundleRelease") }.configureEach {
+    dependsOn(validateReleaseApiBaseUrl)
 }

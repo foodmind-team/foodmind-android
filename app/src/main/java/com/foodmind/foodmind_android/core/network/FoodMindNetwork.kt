@@ -3,7 +3,6 @@ package com.foodmind.foodmind_android.core.network
 import okhttp3.Interceptor
 import okhttp3.Authenticator
 import okhttp3.OkHttpClient
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.Route
 import kotlinx.coroutines.runBlocking
@@ -191,13 +190,53 @@ class FoodMindApiClient(
         api.history(from = from, to = to, period = period, types = types, groupId = groupId, cursor = cursor)
 
     suspend fun createFoodRecord(request: CreateFoodRecordRequest) = api.createFoodRecord(request)
-    suspend fun foodRecords(page: Int = 0) = api.foodRecords(page = page)
+    suspend fun foodRecords(
+        page: Int = 0,
+        from: String? = null,
+        to: String? = null,
+        visibility: String? = null,
+        groupId: String? = null,
+        cuisineId: String? = null,
+        mealId: String? = null,
+        placeId: String? = null,
+        minRating: Int? = null,
+        maxRating: Int? = null,
+    ) = api.foodRecords(
+        from = from,
+        to = to,
+        visibility = visibility,
+        groupId = groupId,
+        cuisineId = cuisineId,
+        mealId = mealId,
+        placeId = placeId,
+        minRating = minRating,
+        maxRating = maxRating,
+        page = page,
+    )
     suspend fun foodRecord(id: String) = api.foodRecord(id)
     suspend fun updateFoodRecord(id: String, version: Long, request: UpdateFoodRecordRequest) =
         api.updateFoodRecord(id, "\"$version\"", request)
     suspend fun deleteFoodRecord(id: String) = api.deleteFoodRecord(id)
     suspend fun createDrinkRecord(request: CreateDrinkRecordRequest) = api.createDrinkRecord(request)
-    suspend fun drinkRecords(page: Int = 0) = api.drinkRecords(page = page)
+    suspend fun drinkRecords(
+        page: Int = 0,
+        from: String? = null,
+        to: String? = null,
+        visibility: String? = null,
+        groupId: String? = null,
+        placeId: String? = null,
+        minRating: Int? = null,
+        maxRating: Int? = null,
+    ) = api.drinkRecords(
+        from = from,
+        to = to,
+        visibility = visibility,
+        groupId = groupId,
+        placeId = placeId,
+        minRating = minRating,
+        maxRating = maxRating,
+        page = page,
+    )
     suspend fun drinkRecord(id: String) = api.drinkRecord(id)
     suspend fun updateDrinkRecord(id: String, version: Long, request: UpdateDrinkRecordRequest) =
         api.updateDrinkRecord(id, "\"$version\"", request)
@@ -264,14 +303,54 @@ class FoodMindApiClient(
         api.cookingPlanTask(planId)
 
     suspend fun cancelCookingPlanTask(planId: String): retrofit2.Response<CookingPlanResponse> =
-        api.cancelCookingPlanTask(planId, "{}".toRequestBody(null))
+        api.cancelCookingPlanTask(planId)
 
-    suspend fun submitCookingPlanDecisions(planId: String, answers: List<QuestionAnswerRequest>): CookingPlanResponse =
+    suspend fun submitCookingPlanDecisions(planId: String, answers: List<CookingQuestionAnswer>): CookingPlanResponse =
         api.submitDecisions(planId, UUID.randomUUID().toString(), answers)
 
+    suspend fun submitCookingPlanDecisionsAsync(
+        planId: String,
+        answers: List<CookingQuestionAnswer>,
+    ): retrofit2.Response<CookingPlanAsyncAcceptedResponse> =
+        api.submitDecisionsAsync(planId, UUID.randomUUID().toString(), answers)
+
+    suspend fun createCookingShoppingList(planId: String) = api.createCookingShoppingList(planId)
+
+    suspend fun inventoryLots(page: Int = 0, size: Int = 100) = api.inventoryLots(page, size)
+    suspend fun createInventoryLot(request: InventoryLotRequest) = api.createInventoryLot(request)
+    suspend fun inventoryLot(lotId: String) = api.inventoryLot(lotId)
+    suspend fun updateInventoryLot(lotId: String, version: Long, request: InventoryLotRequest) =
+        api.updateInventoryLot(lotId, "\"$version\"", request)
+    suspend fun archiveInventoryLot(lotId: String, version: Long) =
+        api.archiveInventoryLot(lotId, "\"$version\"")
+
+    suspend fun shoppingLists(status: String? = null, page: Int = 0, size: Int = 100) =
+        api.shoppingLists(status, page, size)
+    suspend fun shoppingList(shoppingListId: String) = api.shoppingList(shoppingListId)
+    suspend fun updateShoppingListItem(
+        shoppingListId: String,
+        itemId: String,
+        version: Long,
+        request: UpdateShoppingListItemRequest,
+    ) = api.updateShoppingListItem(shoppingListId, itemId, "\"$version\"", request)
+    suspend fun completeShoppingList(shoppingListId: String) =
+        api.completeShoppingList(shoppingListId, UUID.randomUUID().toString())
+
+    suspend fun createRecipeImport(text: String) = api.createRecipeImport(CreateRecipeImportRequest(text))
+    suspend fun recipeImport(importId: String) = api.recipeImport(importId)
+    suspend fun answerRecipeImport(importId: String, version: Long, answers: List<RecipeImportAnswerRequest>) =
+        api.answerRecipeImport(importId, "\"$version\"", RecipeImportAnswersRequest(answers))
+    suspend fun confirmRecipeImport(importId: String, version: Long) =
+        api.confirmRecipeImport(importId, "\"$version\"")
+
+    suspend fun recipes(page: Int = 0, size: Int = 100) = api.recipes(page, size)
+    suspend fun createRecipe(request: UserRecipeRequest) = api.createRecipe(request)
+    suspend fun recipe(id: String) = api.recipe(id)
+    suspend fun updateRecipe(id: String, version: Long, request: UserRecipeRequest) =
+        api.updateRecipe(id, "\"$version\"", request)
+    suspend fun deleteRecipe(id: String) = api.deleteRecipe(id)
+
     suspend fun cookingPlan(planId: String) = api.cookingPlan(planId)
-    suspend fun submitCookingPlanDecisions(planId: String, answers: List<CookingQuestionAnswer>) =
-        api.submitCookingPlanDecisions(planId, UUID.randomUUID().toString(), answers)
     suspend fun cookingPlanHistory(page: Int = 0) = api.cookingPlanHistory(page)
     suspend fun createMediaUpload(request: CreateMediaUploadRequest) = api.createMediaUpload(request)
     suspend fun finaliseMediaUpload(mediaAssetId: String) = api.finaliseMediaUpload(mediaAssetId)
