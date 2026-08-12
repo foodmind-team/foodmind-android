@@ -115,7 +115,9 @@ private suspend fun loadCatalogueDetail(client: FoodMindApiClient, type: String,
             facts = buildList {
                 add("Area" to place.area)
                 place.addressText?.let { add("Address" to it) }
-                place.priceBand?.let { add("Price range" to "$".repeat(it.coerceIn(1, 4))) }
+                val amounts = place.offerings.mapNotNull { it.price.amount.takeIf { a -> a > 0.0 } }
+                if (amounts.size > 1) add("Price range" to "${formatMoney(amounts.min(), place.offerings.first().price.currency)} – ${formatMoney(amounts.max(), place.offerings.first().price.currency)}")
+                else if (amounts.size == 1) add("Price" to formatMoney(amounts.first(), place.offerings.first().price.currency))
                 add("Visible meals" to "${place.offerings.size} items")
                 add("Evidence observations" to "${place.observations.size} items")
             },
