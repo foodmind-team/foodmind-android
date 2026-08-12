@@ -1,6 +1,7 @@
 package com.foodmind.foodmind_android.core.network
 
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -106,6 +107,104 @@ class FoodMindNetworkTest {
         assertNotNull(request.getHeader("X-Correlation-ID"))
         assertFalse(request.getHeader("Idempotency-Key").isNullOrBlank())
         assertEquals("POST", request.method)
+    }
+
+    @Test
+    fun cookingSelectionLoadsBackendRecipesAndSubmitsRecipeIdsWithPreferences() = runTest {
+        tokenStore.saveAccessToken("test-token")
+        server.enqueue(MockResponse().setResponseCode(200).setBody(
+            Gson().toJson(mapOf(
+                "items" to listOf(mapOf(
+                    "id" to "recipe-1",
+                    "name" to "Tomato eggs",
+                    "servings" to 2,
+                    "ingredients" to listOf("2 tomatoes", "3 eggs"),
+                    "steps" to listOf("Cook the eggs"),
+                )),
+                "page" to 0,
+                "size" to 100,
+            )),
+        ))
+        server.enqueue(MockResponse().setResponseCode(202).setBody(
+            Gson().toJson(mapOf("planId" to "plan-1", "status" to "PROCESSING")),
+        ))
+
+        val client = FoodMindApiClient(api, tokenStore)
+        val recipe = client.userRecipes().items.single()
+        client.generateCookingPlanAsync(GenerateCookingPlanRequest(
+            recipeIds = listOf(recipe.id),
+            servings = 3,
+            region = "SG",
+            requiredDietaryTagCodes = listOf("VEGAN"),
+            avoidAllergenCodes = listOf("PEANUT"),
+        ))
+        val listRequest = server.takeRequest()
+        val generateRequest = server.takeRequest()
+        val body = JsonParser.parseString(generateRequest.body.readUtf8()).asJsonObject
+
+        assertEquals("/api/v1/recipes?page=0&size=100", listRequest.path)
+        assertEquals("Tomato eggs", recipe.name)
+        assertEquals("recipe-1", body.getAsJsonArray("recipeIds").single().asString)
+        assertEquals("SG", body.get("region").asString)
+        assertEquals("VEGAN", body.getAsJsonArray("requiredDietaryTagCodes").single().asString)
+        assertEquals("PEANUT", body.getAsJsonArray("avoidAllergenCodes").single().asString)
+    }
+
+    @Test
+    fun cookingRecipeEditorUsesBackendDetailUpdateAndDeleteContracts() = runTest {
+        val recipeJson = Gson().toJson(mapOf(
+            "id" to "recipe-1", "name" to "Tomato eggs", "servings" to 2,
+            "ingredients" to listOf("2 tomatoes", "3 eggs"), "steps" to listOf("Cook"), "version" to 7,
+        ))
+        server.enqueue(MockResponse().setResponseCode(200).setBody(recipeJson))
+        server.enqueue(MockResponse().setResponseCode(200).setBody(recipeJson))
+        server.enqueue(MockResponse().setResponseCode(204))
+        val client = FoodMindApiClient(api, tokenStore)
+
+        val recipe = client.userRecipe("recipe-1")
+        client.updateUserRecipe(recipe.id, recipe.version, UserRecipeRequest(
+            name = recipe.name, servings = recipe.servings, ingredients = recipe.ingredients, steps = recipe.steps,
+        ))
+        client.deleteUserRecipe(recipe.id)
+
+        assertEquals("/api/v1/recipes/recipe-1", server.takeRequest().path)
+        val update = server.takeRequest()
+        assertEquals("PUT", update.method)
+        assertEquals("\"7\"", update.getHeader("If-Match"))
+        val delete = server.takeRequest()
+        assertEquals("DELETE", delete.method)
+        assertEquals("/api/v1/recipes/recipe-1", delete.path)
+    }
+
+    @Test
+    fun cookingInventoryAndShoppingIndexesUseWebContracts() = runTest {
+        val lotJson = Gson().toJson(mapOf(
+            "lotId" to "lot-1", "ingredientName" to "tofu", "quantity" to 300,
+            "available" to 300, "reserved" to 0, "unit" to "g", "version" to 4,
+        ))
+        server.enqueue(MockResponse().setResponseCode(200).setBody(Gson().toJson(mapOf("items" to listOf(JsonParser.parseString(lotJson))))))
+        server.enqueue(MockResponse().setResponseCode(201).setBody(lotJson))
+        server.enqueue(MockResponse().setResponseCode(200).setBody(lotJson))
+        server.enqueue(MockResponse().setResponseCode(204))
+        server.enqueue(MockResponse().setResponseCode(200).setBody(Gson().toJson(mapOf("items" to emptyList<Any>()))))
+        val client = FoodMindApiClient(api, tokenStore)
+
+        val lot = client.inventoryLots().items.single()
+        val body = InventoryLotRequest("tofu", 300.0, "g")
+        client.createInventoryLot(body)
+        client.updateInventoryLot(lot, body)
+        client.archiveInventoryLot(lot)
+        client.shoppingLists()
+
+        assertEquals("/api/v1/inventory/lots?page=0&size=100", server.takeRequest().path)
+        assertEquals("POST", server.takeRequest().method)
+        val update = server.takeRequest()
+        assertEquals("PUT", update.method)
+        assertEquals("\"4\"", update.getHeader("If-Match"))
+        val archive = server.takeRequest()
+        assertEquals("DELETE", archive.method)
+        assertEquals("\"4\"", archive.getHeader("If-Match"))
+        assertEquals("/api/v1/shopping-lists?page=0&size=100", server.takeRequest().path)
     }
 
     @Test

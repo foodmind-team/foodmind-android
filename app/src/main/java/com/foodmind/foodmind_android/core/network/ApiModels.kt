@@ -534,14 +534,49 @@ data class CookingIngredientRequest(
     val source: String? = null,
 )
 
+data class UserRecipeRequest(
+    val name: String,
+    val servings: Int,
+    val imageUrl: String? = null,
+    val tags: List<String> = emptyList(),
+    val allergenHints: List<String> = emptyList(),
+    val ingredients: List<String>,
+    val steps: List<String>,
+)
+
+data class UserRecipeResponse(
+    val id: String,
+    val name: String,
+    val servings: Int,
+    val imageUrl: String? = null,
+    val tags: List<String> = emptyList(),
+    val allergenHints: List<String> = emptyList(),
+    val ingredients: List<String> = emptyList(),
+    val steps: List<String> = emptyList(),
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
+    val version: Long = 0,
+)
+
+data class UserRecipePageResponse(
+    val items: List<UserRecipeResponse> = emptyList(),
+    val page: Int = 0,
+    val size: Int = 20,
+    val totalItems: Long = 0,
+    val totalPages: Int = 0,
+    val hasNext: Boolean = false,
+)
+
 data class GenerateCookingPlanRequest(
     val ingredients: List<CookingIngredientRequest> = emptyList(),
+    val recipeIds: List<String> = emptyList(),
     val servings: Int = 2,
     val maxMinutes: Int? = null,
     val maxBudget: Double? = null,
     val currency: String? = null,
     val requiredDietaryTagCodes: List<String> = emptyList(),
     val avoidAllergenCodes: List<String> = emptyList(),
+    val region: String? = null,
 )
 
 data class CookingPlanResponse(

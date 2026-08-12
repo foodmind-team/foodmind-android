@@ -249,6 +249,19 @@ class FoodMindApiClient(
         api.submitRecommendationFeedback(sessionId, UUID.randomUUID().toString(), request)
     suspend fun recommendationHistory(page: Int = 0) = api.recommendationHistory(page)
 
+    suspend fun userRecipes(page: Int = 0) = api.userRecipes(page)
+    suspend fun createUserRecipe(request: UserRecipeRequest) = api.createUserRecipe(request)
+    suspend fun userRecipe(recipeId: String) = api.userRecipe(recipeId)
+    suspend fun updateUserRecipe(recipeId: String, version: Long, request: UserRecipeRequest) =
+        api.updateUserRecipe(recipeId, "\"$version\"", request)
+    suspend fun deleteUserRecipe(recipeId: String) = api.deleteUserRecipe(recipeId)
+    suspend fun createRecipeImport(text: String) = api.createRecipeImport(CreateRecipeImportRequest(text))
+    suspend fun recipeImport(importId: String) = api.recipeImport(importId)
+    suspend fun answerRecipeImport(importId: String, version: Long, answers: List<RecipeImportAnswerRequest>) =
+        api.answerRecipeImport(importId, "\"$version\"", RecipeImportAnswersRequest(answers))
+    suspend fun confirmRecipeImport(importId: String, version: Long) =
+        api.confirmRecipeImport(importId, "\"$version\"")
+
     suspend fun generateCookingPlan(request: GenerateCookingPlanRequest): CookingPlanResponse =
         api.generateCookingPlan(UUID.randomUUID().toString(), UUID.randomUUID().toString(), request)
 
@@ -263,6 +276,24 @@ class FoodMindApiClient(
 
     suspend fun submitCookingPlanDecisions(planId: String, answers: List<QuestionAnswerRequest>): CookingPlanResponse =
         api.submitDecisions(planId, UUID.randomUUID().toString(), answers)
+
+    suspend fun submitCookingPlanDecisionsAsync(planId: String, answers: List<QuestionAnswerRequest>) =
+        api.submitDecisionsAsync(planId, UUID.randomUUID().toString(), answers)
+
+    suspend fun createShoppingList(planId: String) = api.createShoppingList(planId)
+    suspend fun shoppingLists(page: Int = 0) = api.shoppingLists(page)
+    suspend fun shoppingList(shoppingListId: String) = api.shoppingList(shoppingListId)
+    suspend fun updateShoppingListItem(shoppingListId: String, item: ShoppingListItemResponse, request: UpdateShoppingListItemRequest) =
+        api.updateShoppingListItem(shoppingListId, item.itemId, "\"${item.version}\"", request)
+    suspend fun completeShoppingList(shoppingListId: String) =
+        api.completeShoppingList(shoppingListId, UUID.randomUUID().toString())
+
+    suspend fun inventoryLots(page: Int = 0) = api.inventoryLots(page)
+    suspend fun createInventoryLot(request: InventoryLotRequest) = api.createInventoryLot(request)
+    suspend fun updateInventoryLot(lot: InventoryLotResponse, request: InventoryLotRequest) =
+        api.updateInventoryLot(lot.lotId, "\"${lot.version}\"", request)
+    suspend fun archiveInventoryLot(lot: InventoryLotResponse) =
+        api.archiveInventoryLot(lot.lotId, "\"${lot.version}\"")
 
     suspend fun cookingPlan(planId: String) = api.cookingPlan(planId)
     suspend fun cookingPlanHistory(page: Int = 0) = api.cookingPlanHistory(page)

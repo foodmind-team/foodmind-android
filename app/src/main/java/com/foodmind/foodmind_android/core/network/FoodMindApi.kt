@@ -232,6 +232,44 @@ interface FoodMindApi {
     @GET("recommendations/history")
     suspend fun recommendationHistory(@Query("page") page: Int = 0, @Query("size") size: Int = 20): RecommendationHistoryResponse
 
+    @GET("recipes")
+    suspend fun userRecipes(@Query("page") page: Int = 0, @Query("size") size: Int = 100): UserRecipePageResponse
+
+    @POST("recipes")
+    suspend fun createUserRecipe(@Body request: UserRecipeRequest): UserRecipeResponse
+
+    @GET("recipes/{recipeId}")
+    suspend fun userRecipe(@Path("recipeId") recipeId: String): UserRecipeResponse
+
+    @PUT("recipes/{recipeId}")
+    suspend fun updateUserRecipe(
+        @Path("recipeId") recipeId: String,
+        @Header("If-Match") version: String,
+        @Body request: UserRecipeRequest,
+    ): UserRecipeResponse
+
+    @DELETE("recipes/{recipeId}")
+    suspend fun deleteUserRecipe(@Path("recipeId") recipeId: String)
+
+    @POST("recipe-imports")
+    suspend fun createRecipeImport(@Body request: CreateRecipeImportRequest): RecipeImportResponse
+
+    @GET("recipe-imports/{importId}")
+    suspend fun recipeImport(@Path("importId") importId: String): RecipeImportResponse
+
+    @POST("recipe-imports/{importId}/answers")
+    suspend fun answerRecipeImport(
+        @Path("importId") importId: String,
+        @Header("If-Match") version: String,
+        @Body request: RecipeImportAnswersRequest,
+    ): RecipeImportResponse
+
+    @POST("recipe-imports/{importId}/confirm")
+    suspend fun confirmRecipeImport(
+        @Path("importId") importId: String,
+        @Header("If-Match") version: String,
+    ): RecipeImportResponse
+
     @POST("cooking-plans/generate")
     suspend fun generateCookingPlan(
         @Header("Idempotency-Key") idempotencyKey: String,
@@ -266,6 +304,55 @@ interface FoodMindApi {
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body answers: List<QuestionAnswerRequest>,
     ): CookingPlanResponse
+
+    @POST("cooking-plans/{planId}/decisions-async")
+    suspend fun submitDecisionsAsync(
+        @Path("planId") planId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body answers: List<QuestionAnswerRequest>,
+    ): retrofit2.Response<CookingPlanAsyncAcceptedResponse>
+
+    @POST("cooking-plans/{planId}/shopping-list")
+    suspend fun createShoppingList(@Path("planId") planId: String): ShoppingListResponse
+
+    @GET("shopping-lists")
+    suspend fun shoppingLists(@Query("page") page: Int = 0, @Query("size") size: Int = 100): ShoppingListPageResponse
+
+    @GET("shopping-lists/{shoppingListId}")
+    suspend fun shoppingList(@Path("shoppingListId") shoppingListId: String): ShoppingListResponse
+
+    @PATCH("shopping-lists/{shoppingListId}/items/{itemId}")
+    suspend fun updateShoppingListItem(
+        @Path("shoppingListId") shoppingListId: String,
+        @Path("itemId") itemId: String,
+        @Header("If-Match") version: String,
+        @Body request: UpdateShoppingListItemRequest,
+    ): ShoppingListResponse
+
+    @POST("shopping-lists/{shoppingListId}/complete")
+    suspend fun completeShoppingList(
+        @Path("shoppingListId") shoppingListId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+    ): retrofit2.Response<CookingPlanAsyncAcceptedResponse>
+
+    @GET("inventory/lots")
+    suspend fun inventoryLots(@Query("page") page: Int = 0, @Query("size") size: Int = 100): InventoryLotPageResponse
+
+    @POST("inventory/lots")
+    suspend fun createInventoryLot(@Body request: InventoryLotRequest): InventoryLotResponse
+
+    @PUT("inventory/lots/{lotId}")
+    suspend fun updateInventoryLot(
+        @Path("lotId") lotId: String,
+        @Header("If-Match") version: String,
+        @Body request: InventoryLotRequest,
+    ): InventoryLotResponse
+
+    @DELETE("inventory/lots/{lotId}")
+    suspend fun archiveInventoryLot(
+        @Path("lotId") lotId: String,
+        @Header("If-Match") version: String,
+    )
 
     @POST("media/uploads")
     suspend fun createMediaUpload(@Body request: CreateMediaUploadRequest): MediaUploadInstructionResponse

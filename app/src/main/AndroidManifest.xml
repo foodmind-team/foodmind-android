@@ -65,6 +65,15 @@
         <activity android:name=".GroupWorkspaceActivity" android:exported="false" />
         <activity android:name=".ManualCookingActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".CookingPlanDetailActivity" android:exported="false" />
+        <activity android:name=".CookingHomeActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".CookingAddRecipeActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".CookingRecipeImportActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".CookingPlansActivity" android:exported="false" />
+        <activity android:name=".CookingSettingsActivity" android:exported="false" />
+        <activity android:name=".ShoppingListsActivity" android:exported="false" />
+        <activity android:name=".ShoppingListActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".CookingInventoryActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".CookingRecipeEditorActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".RecommendationDetailActivity" android:exported="false" />
     </application>
 
