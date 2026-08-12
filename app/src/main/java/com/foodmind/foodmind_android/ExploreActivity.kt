@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -82,6 +83,7 @@ private fun ExploreScreen(
 ) {
     var query by remember { mutableStateOf("") }
     var activeQuery by remember { mutableStateOf("") }
+    var type by remember { mutableStateOf<String?>(null) }
     var items by remember { mutableStateOf<List<ExploreItemResponse>>(emptyList()) }
     var nextCursor by remember { mutableStateOf<String?>(null) }
     var hasNext by remember { mutableStateOf(false) }
@@ -91,11 +93,11 @@ private fun ExploreScreen(
     var refresh by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(activeQuery, refresh) {
+    LaunchedEffect(activeQuery, type, refresh) {
         loading = true
         runCatching {
             if (activeQuery.isBlank()) client.explore(topics = null).let { Triple(it.items, it.nextCursor, it.hasNext) }
-            else client.search(activeQuery).let { Triple(it.items, it.nextCursor, it.hasNext) }
+            else client.search(activeQuery, type).let { Triple(it.items, it.nextCursor, it.hasNext) }
         }.onSuccess { (results, cursor, more) -> items = results; nextCursor = cursor; hasNext = more; error = null }
             .onFailure { error = "Could not load Discover content. Please try again." }
         loading = false
@@ -109,7 +111,7 @@ private fun ExploreScreen(
         onRecord = onRecord,
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().background(FoodMindSurface).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     query, { query = it }, modifier = Modifier.weight(1f), singleLine = true,
                     placeholder = { Text("Search meals, places, and products…") },
@@ -118,6 +120,11 @@ private fun ExploreScreen(
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
                 )
                 IconButton(onClick = { activeQuery = query.trim() }) { Icon(Icons.Outlined.Search, "Search") }
+            }
+            Row(Modifier.fillMaxWidth().background(FoodMindSurface).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(null to "Recommendations", "FOOD_RECORD" to "Meal", "PLACE" to "Place", "FOOD_PRODUCT" to "Product").forEach { (code, label) ->
+                    FilterChip(selected = type == code, onClick = { type = code; if (activeQuery.isBlank() && code != null) activeQuery = query.ifBlank { label } }, label = { Text(label) })
+                }
             }
             when {
                 loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
@@ -148,7 +155,7 @@ private fun ExploreScreen(
                             loading = true
                             runCatching {
                                 if (activeQuery.isBlank()) client.explore(after = nextCursor).let { Triple(it.items, it.nextCursor, it.hasNext) }
-                                else client.search(activeQuery, after = nextCursor).let { Triple(it.items, it.nextCursor, it.hasNext) }
+                                else client.search(activeQuery, type, nextCursor).let { Triple(it.items, it.nextCursor, it.hasNext) }
                             }.onSuccess { page -> items = items + page.first; nextCursor = page.second; hasNext = page.third }
                             loading = false
                         } }, modifier = Modifier.fillMaxWidth()) { Text("Load more") }
@@ -164,7 +171,7 @@ private fun ExploreCard(item: ExploreItemResponse, saved: Boolean, onOpen: () ->
     Card(
         onClick = onOpen,
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = FoodMindSurface),
         border = BorderStroke(1.dp, FoodMindLine),
     ) {
         Column {

@@ -79,7 +79,7 @@ private fun DashboardScreen(client: FoodMindApiClient, onBack: () -> Unit) {
 
 @Composable
 private fun MetricCard(metric: DashboardMetricResponse) {
-    Card(colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
+    Card(colors = CardDefaults.cardColors(containerColor = FoodMindSurface), border = BorderStroke(1.dp, FoodMindLine)) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Text(metric.label ?: metric.code ?: "Metrics", fontWeight = FontWeight.Bold); Text(if (metric.empty) "No data yet" else listOfNotNull(metric.value?.toString(), metric.currency, metric.unit).joinToString(" "), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FoodMindGreen, modifier = Modifier.padding(top = 7.dp))
             metric.dimensionLabel?.let { Text(it, color = FoodMindMuted) }; metric.denominator?.takeIf { it > 0 }?.let { denominator -> LinearProgressIndicator(progress = { ((metric.value ?: 0.0) / denominator).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().padding(top = 9.dp)) }

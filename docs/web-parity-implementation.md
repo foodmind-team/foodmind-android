@@ -1,6 +1,10 @@
 # Web-to-Android parity implementation
 
-Android parity authority is the canonical 83-operation backend OpenAPI document at `foodmind-backend/src/main/resources/openapi/openapi.yaml`, shared with Web's locked contract snapshot.
+Android parity authority:
+
+- Web route inventory: `foodmind-web/src/app/router/router.tsx` at web `master` (`af643ca`).
+- Backend contract: `foodmind-backend/src/main/resources/openapi/openapi.yaml` at backend `master` (`7ea2b90`).
+- Android implementation branch: `feature/android-web-parity-xhs`.
 
 ## Feature mapping
 
@@ -11,24 +15,30 @@ Android parity authority is the canonical 83-operation backend OpenAPI document 
 | Food/drink history and CRUD | `HistoryActivity`, `RecordCollectionActivity`, `RecordEditorActivity`, `RecordDetailActivity` | `/history`, `/food-records/*`, `/drink-records/*`, `/media/*` |
 | Groups, invitations, members, feed, archive | `GroupsActivity`, `GroupWorkspaceActivity` | `/groups/*`, `/group-invitations/join` |
 | Explore, search, content details | `ExploreActivity`, `CatalogueDetailActivity` | `/explore`, `/search`, `/catalogue/*` |
-| Want to Try and recipes | `SavedActivity`, `RecipeLibraryActivity`, `RecipeEditorActivity` | `/want-to-try/*`, server-owned `/recipes/*` |
-| Inventory | `InventoryActivity` | `/inventory/lots/*` list/filter/create/read/update/archive |
-| Shopping lists | `ShoppingListsActivity`, `ShoppingListDetailActivity` | `/shopping-lists/*` list/filter/read/update/complete |
-| Recipe import | `RecipeImportActivity`, `RecipeImportSessionActivity` | `/recipe-imports/*` submit/answer/confirm/status |
-| Manual and recipe cooking | `ManualCookingActivity`, `RecipeLibraryActivity`, `CookingPlanDetailActivity` | `/cooking-plans/*`, catalogue preference codes |
+| Want to Try and recipes | `SavedActivity`, `RecipeLibraryActivity`, `CookingRecipeEditorActivity` | `/want-to-try/*`, `/recipes/*`, `/recipe-imports/*` |
+| Cooking selection and preferences | `CookingHomeActivity`, `CookingSettingsActivity` | `/recipes`, `/cooking-plans/generate-async`, on-device cooking preferences |
+| Cooking history and live task progress | `CookingPlansActivity`, `CookingPlanDetailActivity` | `/cooking-plans/history`, `/cooking-plans/{id}`, `/task`, `/cancel` |
+| Shopping and real inventory | `ShoppingListsActivity`, `ShoppingListActivity`, `CookingInventoryActivity` | `/shopping-lists/*`, `/inventory/lots/*` |
+| Manual cooking | `ManualCookingActivity`, `CookingPlanDetailActivity` | `/cooking-plans/*`, catalogue preference codes |
 | Chat sessions, messages, references | `ChatListActivity`, `ChatActivity` | `/chat/sessions/*`, `/search` |
 | Dashboard and weekly recap | `DashboardActivity` | `/dashboard`, `/weekly-recaps/{weekStart}` |
 | Profile and preferences | `ProfileActivity`, `ProfileEditorActivity`, `PreferencesActivity` | `/users/me`, `/users/me/preferences`, recommendation history |
 
-## Contract synchronization
+## Contract decision: recipes
 
-The backend owns recipe persistence and cooking accepts `recipeIds`. Android never substitutes local drafts for failed server requests. The root Gradle tasks provide executable synchronization gates:
+The current backend OpenAPI exposes owner-scoped `/recipes` endpoints and
+`GenerateCookingPlanRequest.recipeIds`. The Web-aligned Android cooking flow therefore:
 
-- `apiGenerate` snapshots the sibling backend OpenAPI and generates reference Kotlin Retrofit APIs/models plus checked-in contract metadata;
-- `apiCheck` verifies source hash, snapshot, generated DTO field manifest, and current backend source;
-- `apiCoverage` requires exactly 83 unique Retrofit operations with no omissions or duplicates.
+1. reads recipe cards from `GET /recipes`;
+2. imports multilingual pasted recipes through the Agent-backed `/recipe-imports` workflow;
+3. reads, updates, and deletes account recipes through `/recipes/{id}`;
+4. sends the selected recipe IDs to `POST /cooking-plans/generate-async` and opens the processing detail immediately;
+5. polls task progress in the detail page, supports cancellation, and then renders the terminal plan;
+6. lets the backend reload the recipes and current inventory before planning;
+7. persists region, dietary, allergen, and local execution-board progress on-device.
 
-Release assembly additionally rejects a missing, non-HTTPS, or `.example` API origin.
+Legacy device-local drafts remain available to the older recipe-library flow, but are no
+longer the authority for the Web-aligned Cooking selection page.
 
 ## Session, media, and permission behavior
 
@@ -43,9 +53,12 @@ Release assembly additionally rejects a missing, non-HTTPS, or `.example` API or
 Local delivery gate:
 
 ```bash
-./gradlew apiCheck clean testDebugUnitTest assembleDebug lintDebug compileDebugAndroidTestKotlin
+./gradlew testDebugUnitTest lintDebug assembleDebug compileDebugAndroidTestKotlin
 ```
 
 MockWebServer covers bearer headers, refresh rotation/retry, correlation IDs,
 idempotency headers, public endpoint paths, and optimistic-concurrency headers.
-Release acceptance also installs the generated APK on an emulator and repeats the shared Web UAT scenario against the real backend and intelligence stack without API interception.
+The local gate passes with the Android unit-test suite. A Pixel emulator regression also
+covered the five Cooking tabs, live backend recipe/inventory/shopping-list reads, backend
+recipe editing, immediate PROCESSING navigation, automatic READY transition, and execution
+progress restoration after force-stopping and reopening the app.

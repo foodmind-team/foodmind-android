@@ -94,7 +94,7 @@ private fun GroupsScreen(client: FoodMindApiClient, onNavigate: (FoodMindRoot) -
             if (loading) item { CircularProgressIndicator() }
             if (!loading && groups.isEmpty() && error == null) item { FoodMindSurfaceCard { Text("No groups yet. Create one or join with an invitation token.") } }
             items(groups, key = { it.id.orEmpty() }) { group ->
-                Card(onClick = { group.id?.let(onOpen) }, colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) {
+                Card(onClick = { group.id?.let(onOpen) }, colors = CardDefaults.cardColors(containerColor = FoodMindSurface), border = BorderStroke(1.dp, FoodMindLine)) {
                     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         FoodMindAvatar(group.name ?: "G")
                         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) { Text(group.name ?: "Untitled group", fontWeight = FontWeight.Bold, fontSize = 17.sp); Text(group.description ?: "Shared food decisions", color = FoodMindMuted, maxLines = 2); Text(group.status ?: "ACTIVE", color = FoodMindGreen, fontSize = 11.sp) }

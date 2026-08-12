@@ -73,11 +73,6 @@ interface FoodMindApi {
         @Query("to") to: String? = null,
         @Query("visibility") visibility: String? = null,
         @Query("groupId") groupId: String? = null,
-        @Query("cuisineId") cuisineId: String? = null,
-        @Query("mealId") mealId: String? = null,
-        @Query("placeId") placeId: String? = null,
-        @Query("minRating") minRating: Int? = null,
-        @Query("maxRating") maxRating: Int? = null,
         @Query("page") page: Int = 0,
         @Query("size") size: Int = 20,
         @Query("sort") sort: String = "occurredAt,desc",
@@ -101,9 +96,6 @@ interface FoodMindApi {
         @Query("to") to: String? = null,
         @Query("visibility") visibility: String? = null,
         @Query("groupId") groupId: String? = null,
-        @Query("placeId") placeId: String? = null,
-        @Query("minRating") minRating: Int? = null,
-        @Query("maxRating") maxRating: Int? = null,
         @Query("page") page: Int = 0,
         @Query("size") size: Int = 20,
         @Query("sort") sort: String = "occurredAt,desc",
@@ -240,6 +232,44 @@ interface FoodMindApi {
     @GET("recommendations/history")
     suspend fun recommendationHistory(@Query("page") page: Int = 0, @Query("size") size: Int = 20): RecommendationHistoryResponse
 
+    @GET("recipes")
+    suspend fun userRecipes(@Query("page") page: Int = 0, @Query("size") size: Int = 100): UserRecipePageResponse
+
+    @POST("recipes")
+    suspend fun createUserRecipe(@Body request: UserRecipeRequest): UserRecipeResponse
+
+    @GET("recipes/{id}")
+    suspend fun userRecipe(@Path("id") recipeId: String): UserRecipeResponse
+
+    @PUT("recipes/{id}")
+    suspend fun updateUserRecipe(
+        @Path("id") recipeId: String,
+        @Header("If-Match") version: String,
+        @Body request: UserRecipeRequest,
+    ): UserRecipeResponse
+
+    @DELETE("recipes/{id}")
+    suspend fun deleteUserRecipe(@Path("id") recipeId: String)
+
+    @POST("recipe-imports")
+    suspend fun createRecipeImport(@Body request: CreateRecipeImportRequest): RecipeImportResponse
+
+    @GET("recipe-imports/{importId}")
+    suspend fun recipeImport(@Path("importId") importId: String): RecipeImportResponse
+
+    @POST("recipe-imports/{importId}/answers")
+    suspend fun answerRecipeImport(
+        @Path("importId") importId: String,
+        @Header("If-Match") version: String,
+        @Body request: RecipeImportAnswersRequest,
+    ): RecipeImportResponse
+
+    @POST("recipe-imports/{importId}/confirm")
+    suspend fun confirmRecipeImport(
+        @Path("importId") importId: String,
+        @Header("If-Match") version: String,
+    ): RecipeImportResponse
+
     @POST("cooking-plans/generate")
     suspend fun generateCookingPlan(
         @Header("Idempotency-Key") idempotencyKey: String,
@@ -263,30 +293,50 @@ interface FoodMindApi {
     suspend fun cookingPlanTask(@Path("planId") planId: String): retrofit2.Response<CookingPlanTaskResponse>
 
     @POST("cooking-plans/{planId}/cancel")
-    suspend fun cancelCookingPlanTask(@Path("planId") planId: String): retrofit2.Response<CookingPlanResponse>
+    suspend fun cancelCookingPlanTask(
+        @Path("planId") planId: String,
+        @Body body: okhttp3.RequestBody,
+    ): retrofit2.Response<CookingPlanResponse>
 
     @POST("cooking-plans/{planId}/decisions")
     suspend fun submitDecisions(
         @Path("planId") planId: String,
         @Header("Idempotency-Key") idempotencyKey: String,
-        @Body answers: List<CookingQuestionAnswer>,
+        @Body answers: List<QuestionAnswerRequest>,
     ): CookingPlanResponse
 
     @POST("cooking-plans/{planId}/decisions-async")
     suspend fun submitDecisionsAsync(
         @Path("planId") planId: String,
         @Header("Idempotency-Key") idempotencyKey: String,
-        @Body answers: List<CookingQuestionAnswer>,
+        @Body answers: List<QuestionAnswerRequest>,
     ): retrofit2.Response<CookingPlanAsyncAcceptedResponse>
 
     @POST("cooking-plans/{planId}/shopping-list")
-    suspend fun createCookingShoppingList(@Path("planId") planId: String): ShoppingListResponse
+    suspend fun createShoppingList(@Path("planId") planId: String): ShoppingListResponse
+
+    @GET("shopping-lists")
+    suspend fun shoppingLists(@Query("page") page: Int = 0, @Query("size") size: Int = 100): ShoppingListPageResponse
+
+    @GET("shopping-lists/{shoppingListId}")
+    suspend fun shoppingList(@Path("shoppingListId") shoppingListId: String): ShoppingListResponse
+
+    @PATCH("shopping-lists/{shoppingListId}/items/{itemId}")
+    suspend fun updateShoppingListItem(
+        @Path("shoppingListId") shoppingListId: String,
+        @Path("itemId") itemId: String,
+        @Header("If-Match") version: String,
+        @Body request: UpdateShoppingListItemRequest,
+    ): ShoppingListResponse
+
+    @POST("shopping-lists/{shoppingListId}/complete")
+    suspend fun completeShoppingList(
+        @Path("shoppingListId") shoppingListId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+    ): retrofit2.Response<CookingPlanAsyncAcceptedResponse>
 
     @GET("inventory/lots")
-    suspend fun inventoryLots(
-        @Query("page") page: Int = 0,
-        @Query("size") size: Int = 20,
-    ): InventoryLotPageResponse
+    suspend fun inventoryLots(@Query("page") page: Int = 0, @Query("size") size: Int = 100): InventoryLotPageResponse
 
     @POST("inventory/lots")
     suspend fun createInventoryLot(@Body request: InventoryLotRequest): InventoryLotResponse
@@ -297,80 +347,15 @@ interface FoodMindApi {
     @PUT("inventory/lots/{lotId}")
     suspend fun updateInventoryLot(
         @Path("lotId") lotId: String,
-        @Header("If-Match") ifMatch: String,
+        @Header("If-Match") version: String,
         @Body request: InventoryLotRequest,
     ): InventoryLotResponse
 
     @DELETE("inventory/lots/{lotId}")
     suspend fun archiveInventoryLot(
         @Path("lotId") lotId: String,
-        @Header("If-Match") ifMatch: String,
+        @Header("If-Match") version: String,
     )
-
-    @GET("shopping-lists")
-    suspend fun shoppingLists(
-        @Query("status") status: String? = null,
-        @Query("page") page: Int = 0,
-        @Query("size") size: Int = 20,
-    ): ShoppingListPageResponse
-
-    @GET("shopping-lists/{shoppingListId}")
-    suspend fun shoppingList(@Path("shoppingListId") shoppingListId: String): ShoppingListResponse
-
-    @PATCH("shopping-lists/{shoppingListId}/items/{itemId}")
-    suspend fun updateShoppingListItem(
-        @Path("shoppingListId") shoppingListId: String,
-        @Path("itemId") itemId: String,
-        @Header("If-Match") ifMatch: String,
-        @Body request: UpdateShoppingListItemRequest,
-    ): ShoppingListResponse
-
-    @POST("shopping-lists/{shoppingListId}/complete")
-    suspend fun completeShoppingList(
-        @Path("shoppingListId") shoppingListId: String,
-        @Header("Idempotency-Key") idempotencyKey: String,
-    ): retrofit2.Response<CookingPlanAsyncAcceptedResponse>
-
-    @POST("recipe-imports")
-    suspend fun createRecipeImport(@Body request: CreateRecipeImportRequest): RecipeImportResponse
-
-    @GET("recipe-imports/{importId}")
-    suspend fun recipeImport(@Path("importId") importId: String): RecipeImportResponse
-
-    @POST("recipe-imports/{importId}/answers")
-    suspend fun answerRecipeImport(
-        @Path("importId") importId: String,
-        @Header("If-Match") ifMatch: String,
-        @Body request: RecipeImportAnswersRequest,
-    ): RecipeImportResponse
-
-    @POST("recipe-imports/{importId}/confirm")
-    suspend fun confirmRecipeImport(
-        @Path("importId") importId: String,
-        @Header("If-Match") ifMatch: String,
-    ): RecipeImportResponse
-
-    @GET("recipes")
-    suspend fun recipes(
-        @Query("page") page: Int = 0,
-        @Query("size") size: Int = 20,
-    ): UserRecipePageResponse
-
-    @POST("recipes")
-    suspend fun createRecipe(@Body request: UserRecipeRequest): UserRecipeResponse
-
-    @GET("recipes/{id}")
-    suspend fun recipe(@Path("id") id: String): UserRecipeResponse
-
-    @PUT("recipes/{id}")
-    suspend fun updateRecipe(
-        @Path("id") id: String,
-        @Header("If-Match") ifMatch: String,
-        @Body request: UserRecipeRequest,
-    ): UserRecipeResponse
-
-    @DELETE("recipes/{id}")
-    suspend fun deleteRecipe(@Path("id") id: String)
 
     @POST("media/uploads")
     suspend fun createMediaUpload(@Body request: CreateMediaUploadRequest): MediaUploadInstructionResponse

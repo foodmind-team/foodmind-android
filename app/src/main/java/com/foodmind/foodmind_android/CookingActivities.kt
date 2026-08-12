@@ -3,19 +3,25 @@ package com.foodmind.foodmind_android
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.RestaurantMenu
@@ -44,19 +50,24 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.foodmind.foodmind_android.core.network.CookingDecisionResponse
 import com.foodmind.foodmind_android.core.network.CookingConfirmationQuestionResponse
 import com.foodmind.foodmind_android.core.network.CookingIngredientRequest
 import com.foodmind.foodmind_android.core.network.CookingPlanResponse
+import com.foodmind.foodmind_android.core.network.CookingRepairOptionResponse
 import com.foodmind.foodmind_android.core.network.CookingPlanSummary
 import com.foodmind.foodmind_android.core.network.CookingPlanTaskResponse
+import com.foodmind.foodmind_android.core.network.CookingTimelineTaskResponse
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
 import com.foodmind.foodmind_android.core.network.GenerateCookingPlanRequest
-import com.foodmind.foodmind_android.core.network.CookingQuestionAnswer
+import com.foodmind.foodmind_android.core.network.QuestionAnswerRequest
+import com.foodmind.foodmind_android.formatFoodMindTimestamp
 import com.foodmind.foodmind_android.domain.repository.AsyncSubmitResult
-import com.foodmind.foodmind_android.domain.repository.COOKING_PLAN_CANCEL_CONFLICT
 import com.foodmind.foodmind_android.domain.repository.CookingPlanTaskRepository
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import java.util.Locale
+import org.json.JSONObject
 
 class ManualCookingActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -172,7 +183,7 @@ private fun ManualCookingScreen(client: FoodMindApiClient, onBack: () -> Unit, o
             }
             item { Text("Recent plans", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 8.dp)) }
             if (history.isEmpty()) item { Text("No plans yet.", color = FoodMindMuted) }
-            items(history, key = { it.planId.orEmpty() }) { plan -> Card(onClick = { plan.planId?.let(onOpenPlan) }, colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, FoodMindLine)) { Column(Modifier.fillMaxWidth().padding(14.dp)) { Text("${plan.sourceCount} sources · ${plan.taskCount} tasks${plan.makespanMinutes?.let { " · $it min" } ?: ""}", fontWeight = FontWeight.Bold); Text("${plan.status} · ${formatFoodMindTimestamp(plan.createdAt)}", color = FoodMindMuted, fontSize = 12.sp) } } }
+            items(history, key = { it.planId.orEmpty() }) { plan -> Card(onClick = { plan.planId?.let(onOpenPlan) }, colors = CardDefaults.cardColors(containerColor = FoodMindSurface), border = BorderStroke(1.dp, FoodMindLine)) { Column(Modifier.fillMaxWidth().padding(14.dp)) { Text("${plan.sourceCount} sources · ${plan.taskCount} tasks${plan.makespanMinutes?.let { " · $it min" } ?: ""}", fontWeight = FontWeight.Bold); Text("${plan.status} · ${formatFoodMindTimestamp(plan.createdAt)}", color = FoodMindMuted, fontSize = 12.sp) } } }
         }
     }
 }
@@ -189,27 +200,33 @@ class CookingPlanDetailActivity : ComponentActivity() {
 @Composable
 private fun CookingPlanDetailScreen(client: FoodMindApiClient, planId: String, onBack: () -> Unit) {
     var plan by remember { mutableStateOf<CookingPlanResponse?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var completed by remember { mutableStateOf(setOf<String>()) }
-    var refresh by remember { mutableStateOf(0) }
     var taskProgress by remember { mutableStateOf<CookingPlanTaskResponse?>(null) }
     var cancelling by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var refresh by remember { mutableStateOf(0) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     LaunchedEffect(planId, refresh) {
-        runCatching {
-            do {
-                val current = client.cookingPlan(planId)
-                plan = current; error = null
-                if (current.status == "PROCESSING") {
-                    val task = client.cookingPlanTask(planId)
-                    if (task.isSuccessful) taskProgress = task.body()
-                    delay(2_000)
+        runCatching { client.cookingPlan(planId) }
+            .onSuccess {
+                plan = it
+                error = null
+                if (it.status == "PROCESSING") {
+                    runCatching { client.cookingPlanTask(planId) }
+                        .onSuccess { response ->
+                            when {
+                                response.isSuccessful -> taskProgress = response.body()
+                                response.code() == 404 -> taskProgress = null
+                                else -> error = "Could not refresh generation progress (HTTP ${response.code()})."
+                            }
+                        }
+                    delay(2000)
+                    refresh++
+                } else {
+                    taskProgress = null
                 }
-            } while (current.status == "PROCESSING")
-            taskProgress = null
-        }
-            .onFailure { error = "Could not load the plan." }
+            }
+            .onFailure { error = friendlyCookingError(it, "Could not load the plan.") }
     }
     FoodMindDetailScaffold("Cooking plan", onBack) { padding ->
         val value = plan
@@ -221,104 +238,183 @@ private fun CookingPlanDetailScreen(client: FoodMindApiClient, planId: String, o
             }
             else -> {
                 val status = value.status
+                // Execution board — locally simulated (the backend contract has no
+                // /execution endpoint). Lane state advances on-device with an
+                // expectedEventId optimistic concurrency stub that maps to 409.
+                val timeline = value.timeline.sortedBy { it.startMinute }
+                val timelineKey = timeline.joinToString("|") { it.taskId }
+                val savedExecution = remember(planId, timelineKey) {
+                    CookingExecutionStore.load(context, planId, timeline.map { it.taskId })
+                }
+                var boardStates by remember(planId, timelineKey) { mutableStateOf(savedExecution.states) }
+                var boardEventId by remember(planId, timelineKey) { mutableStateOf(savedExecution.eventId) }
+                val board = computeExecutionBoard(timeline, boardStates, boardEventId)
+                val total = timeline.size
+                val done = board.completed.size
+                var timelineExpanded by remember(planId) { mutableStateOf(false) }
+                var preparationExpanded by remember(planId) { mutableStateOf(false) }
                 LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     item {
-                        Text(status.replace('_', ' '), color = if (status == "READY") FoodMindGreen else FoodMindCoral, fontWeight = FontWeight.Bold)
+                        Text(status.replace('_', ' '), color = if (status == "READY") FoodMindGreen else FoodMindCoral, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                         Text("Your FoodMind cooking plan", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
-                        value.makespanMinutes?.let { Text("预计 $it 分钟", color = FoodMindMuted) }
-                        value.sources.forEach { source -> Text("${source.dishName.orEmpty()} · ${source.targetServings ?: ""} 人份", color = FoodMindMuted, fontSize = 12.sp) }
+                        Text(
+                            value.explanation ?: when (status) {
+                                "PROCESSING" -> "The Cooking Agent is building an ordered plan in the background."
+                                "NEEDS_CONFIRMATION" -> "The Cooking Agent needs one inventory decision before it can finish."
+                                else -> "${timeline.size} ordered tasks across the dishes you picked."
+                            },
+                            color = FoodMindMuted,
+                            modifier = Modifier.padding(top = 5.dp),
+                        )
+                        Text(
+                            listOfNotNull(
+                                value.solverStatus?.let { "Solver ${it.replace('_', ' ').lowercase()}" },
+                                value.makespanMinutes?.let { "$it minute makespan" },
+                                value.region?.let { "Region $it" },
+                            ).joinToString(" · "),
+                            color = FoodMindFaint,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
                     }
-                    error?.let { message -> item { Text(message, color = FoodMindCoral) } }
                     when (status) {
-                        "PROCESSING" -> {
-                            item {
-                                FoodMindSurfaceCard {
-                                    Column(Modifier.padding(16.dp)) {
-                                        Text("Background generation", fontWeight = FontWeight.Bold)
-                                        Text(
-                                            taskProgress?.progress?.node?.replace('_', ' ') ?: "Starting the background task…",
-                                            color = FoodMindGreen,
-                                        )
-                                        Text(
-                                            "${taskProgress?.progress?.completedSteps ?: 0} steps completed",
-                                            color = FoodMindMuted,
-                                            fontSize = 12.sp,
-                                        )
-                                    }
-                                }
-                            }
-                            item {
+                        "PROCESSING" -> item {
+                            FoodMindSurfaceCard { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Building your cooking plan", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                                Text("The Cooking Agent is working in the background. This page updates automatically.", color = FoodMindMuted)
+                                taskProgress?.progress?.let { progress ->
+                                    Text(
+                                        progress.node?.replace('_', ' ')?.lowercase()?.replaceFirstChar(Char::uppercase)
+                                            ?: "Working",
+                                        color = FoodMindGreen,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                    Text("${progress.completedSteps} steps completed", color = FoodMindMuted, fontSize = 12.sp)
+                                    progress.message?.let { Text(it, color = FoodMindMuted, fontSize = 12.sp) }
+                                } ?: Text("Submitted — waiting for the first progress update…", color = FoodMindMuted, fontSize = 12.sp)
+                                LinearProgressIndicator(Modifier.fillMaxWidth())
                                 OutlinedButton(
                                     onClick = {
                                         scope.launch {
-                                            cancelling = true; error = null
+                                            cancelling = true
+                                            error = null
                                             runCatching { client.cancelCookingPlanTask(planId) }
                                                 .onSuccess { response ->
                                                     when {
-                                                        response.isSuccessful && response.body() != null -> {
-                                                            plan = response.body(); taskProgress = null
-                                                        }
-                                                        response.code() == COOKING_PLAN_CANCEL_CONFLICT -> refresh++
-                                                        else -> error = "Could not cancel the background task."
+                                                        response.isSuccessful && response.body() != null -> plan = response.body()
+                                                        response.code() == 409 -> refresh++
+                                                        else -> error = "Could not cancel generation (HTTP ${response.code()})."
                                                     }
                                                 }
-                                                .onFailure { error = "Could not cancel the background task." }
+                                                .onFailure { error = friendlyCookingError(it, "Could not cancel generation.") }
                                             cancelling = false
                                         }
                                     },
                                     enabled = !cancelling,
                                     modifier = Modifier.fillMaxWidth(),
-                                ) { Text(if (cancelling) "Cancelling…" else "Cancel this generation") }
-                            }
+                                ) { Text(if (cancelling) "Cancelling…" else "Cancel generation") }
+                                error?.let { Text(it, color = FoodMindCoral, fontSize = 12.sp) }
+                            } }
                         }
                         "READY" -> {
+                            fun advance(taskId: String, next: BoardState) {
+                                val allowed = when (next) {
+                                    BoardState.IN_PROGRESS -> board.available.any { it.taskId == taskId }
+                                    else -> board.inProgress.any { it.taskId == taskId }
+                                }
+                                if (!allowed) {
+                                    Toast.makeText(context, "EXECUTION_STATE_CONFLICT — the board moved elsewhere. Refreshing…", Toast.LENGTH_SHORT).show()
+                                    return
+                                }
+                                val nextStates = boardStates + (taskId to next)
+                                val nextEventId = boardEventId + 1
+                                boardStates = nextStates
+                                boardEventId = nextEventId
+                                CookingExecutionStore.save(context, planId, nextStates, nextEventId)
+                            }
                             item {
                                 FoodMindSurfaceCard { Column(Modifier.padding(16.dp)) {
-                                    Text("已完成 ${completed.size}/${value.timeline.size}", fontWeight = FontWeight.Bold)
+                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text("EXECUTION PROGRESS", color = FoodMindGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = .7.sp)
+                                            Text("$done of $total tasks complete", fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                        Text("${if (total == 0) 0 else done * 100 / total}%", color = FoodMindLime, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
+                                    }
                                     LinearProgressIndicator(
-                                        progress = { if (value.timeline.isEmpty()) 0f else completed.size.toFloat() / value.timeline.size },
+                                        progress = { if (total == 0) 0f else done.toFloat() / total },
                                         modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
                                     )
+                                    if (done > 0 || board.inProgress.isNotEmpty()) TextButton(onClick = {
+                                        val reset = timeline.associate { it.taskId to BoardState.PENDING }
+                                        boardStates = reset
+                                        boardEventId = 0
+                                        CookingExecutionStore.save(context, planId, reset, 0)
+                                    }) { Text("Reset progress") }
+                                    Text("Progress is saved on this device and does not mutate backend inventory.", color = FoodMindMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
                                 } }
                             }
-                            item { Text("执行步骤", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
-                            items(value.timeline.sortedBy { it.startMinute }, key = { it.taskId }) { task ->
-                                val checked = task.taskId in completed
-                                Card(
-                                    onClick = { completed = if (checked) completed - task.taskId else completed + task.taskId },
-                                    colors = CardDefaults.cardColors(containerColor = if (checked) Color(0xFFEEF7F0) else Color.White),
-                                    border = BorderStroke(1.dp, FoodMindLine),
-                                ) {
-                                    Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Checkbox(checked, { completed = if (checked) completed - task.taskId else completed + task.taskId })
-                                        Column(Modifier.padding(start = 6.dp)) {
-                                            Text(task.instruction, fontWeight = FontWeight.Medium)
-                                            Text(
-                                                "${task.startMinute}–${task.endMinute} 分钟 · ${if (task.workMode == "ACTIVE") "动手" else "等待"}" +
-                                                    if (task.resources.isEmpty()) "" else " · ${task.resources.joinToString("/")}",
-                                                color = FoodMindMuted,
-                                                fontSize = 12.sp,
-                                            )
-                                        }
+                            when {
+                                board.inProgress.isNotEmpty() -> item {
+                                    BoardLane("Now", board.inProgress, FoodMindCoral) { task ->
+                                        TextButton(onClick = { advance(task.taskId, BoardState.COMPLETED) }) { Text("Complete") }
                                     }
                                 }
-                            }
-                            if (value.miseEnPlace.isNotEmpty()) {
-                                item { Text("备料（Mise en place）", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
-                                items(value.miseEnPlace, key = { it.sequenceNo ?: it.instruction.hashCode() }) { mise ->
-                                    FoodMindSurfaceCard { Column(Modifier.padding(14.dp)) {
-                                        Text("${mise.sequenceNo ?: ""}. ${mise.instruction}", fontWeight = FontWeight.Medium)
-                                        Text(listOfNotNull(mise.ingredient, mise.durationMinutes?.let { "$it 分钟" }).joinToString(" · "), color = FoodMindMuted, fontSize = 12.sp)
+                                board.available.isNotEmpty() -> item {
+                                    BoardLane("Up next", board.available, FoodMindLime) { task ->
+                                        TextButton(onClick = { advance(task.taskId, BoardState.IN_PROGRESS) }) { Text("Start") }
+                                    }
+                                }
+                                total > 0 && done == total -> item {
+                                    FoodMindSurfaceCard { Column(Modifier.padding(16.dp)) {
+                                        Text("Cooking complete", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                                        Text("Every step in this plan is finished.", color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp))
                                     } }
                                 }
                             }
-                            if (value.completionChecklist.isNotEmpty()) {
-                                item { Text("完成清单", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+
+                            if (total > 0) item {
+                                OutlinedButton(
+                                    onClick = { timelineExpanded = !timelineExpanded },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(if (timelineExpanded) "Hide full timeline" else "View full timeline · $total steps")
+                                }
+                            }
+                            if (timelineExpanded) {
+                                if (board.blocked.isNotEmpty()) {
+                                    item { BoardLane("Later", board.blocked.map { it.first }, FoodMindFaint, reason = { task -> board.blocked.firstOrNull { it.first.taskId == task.taskId }?.second }) {} }
+                                }
+                                if (board.completed.isNotEmpty()) {
+                                    item { BoardLane("Completed", board.completed, FoodMindGreen) {} }
+                                }
+                            }
+
+                            if (value.miseEnPlace.isNotEmpty() || value.completionChecklist.isNotEmpty()) item {
+                                OutlinedButton(
+                                    onClick = { preparationExpanded = !preparationExpanded },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    val count = value.miseEnPlace.size + value.completionChecklist.size
+                                    Text(if (preparationExpanded) "Hide preparation & checks" else "Preparation & checks · $count items")
+                                }
+                            }
+                            if (preparationExpanded && value.miseEnPlace.isNotEmpty()) {
+                                item { Text("Mise en place", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+                                items(value.miseEnPlace, key = { it.sequenceNo ?: it.instruction.hashCode() }) { mise ->
+                                    FoodMindSurfaceCard { Column(Modifier.padding(14.dp)) {
+                                        Text("${mise.sequenceNo ?: ""}. ${mise.instruction}", fontWeight = FontWeight.Medium)
+                                        Text(listOfNotNull(mise.ingredient, mise.durationMinutes?.let { "$it min" }).joinToString(" · "), color = FoodMindMuted, fontSize = 12.sp)
+                                    } }
+                                }
+                            }
+                            if (preparationExpanded && value.completionChecklist.isNotEmpty()) {
+                                item { Text("Completion checklist", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
                                 items(value.completionChecklist, key = { it.completionItemId }) { item ->
                                     FoodMindSurfaceCard { Row(Modifier.fillMaxWidth()) {
                                         Column(Modifier.weight(1f)) {
                                             Text(item.ingredientName, fontWeight = FontWeight.Bold)
-                                            Text("用于 ${item.recipeIds.size} 道菜", color = FoodMindMuted, fontSize = 12.sp)
+                                            Text("Used by ${item.recipeIds.size} dishes", color = FoodMindMuted, fontSize = 12.sp)
                                         }
                                         Text(item.allocations.joinToString { "${it.quantity} ${it.unit}" }, color = FoodMindGreen)
                                     } }
@@ -327,63 +423,52 @@ private fun CookingPlanDetailScreen(client: FoodMindApiClient, planId: String, o
                         }
                         "NEEDS_CONFIRMATION" -> {
                             item {
-                                Text("需要确认", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                                value.planRevision?.let { Text("计划版本 $it", color = FoodMindMuted, fontSize = 12.sp) }
+                                Text("Your plan needs a decision", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                                Text("Choose how FoodMind should handle the inventory shortage.", color = FoodMindMuted, fontSize = 12.sp)
                             }
                             item {
                                 ConfirmationForm(
                                     questions = value.confirmationQuestions,
-                                    purchaseOptionIds = value.decisions
-                                        .filter { it.optionType == "purchase" }
-                                        .mapTo(mutableSetOf()) { it.optionId },
-                                    onPurchase = {
-                                        val shopping = client.createCookingShoppingList(planId)
-                                        context.startActivity(ShoppingListDetailActivity.intent(context, shopping.shoppingListId))
-                                    },
-                                    onSubmit = { answers, asynchronous ->
-                                    val nextId = if (asynchronous) {
+                                    repairOptions = value.repairOptions,
+                                    decisions = value.decisions,
+                                    onSubmit = { answers ->
                                         val response = client.submitCookingPlanDecisionsAsync(planId, answers)
-                                        if (!response.isSuccessful) error("Decision submission failed with HTTP ${response.code()}")
-                                        response.body()?.planId
-                                    } else {
-                                        client.submitCookingPlanDecisions(planId, answers).planId
-                                    }
-                                    if (nextId != null) context.startActivity(CookingPlanDetailActivity.intent(context, nextId)) else onBack()
-                                })
+                                        val nextId = response.body()?.planId.takeIf { response.isSuccessful }
+                                            ?: error("The backend did not accept this decision.")
+                                        context.startActivity(CookingPlanDetailActivity.intent(context, nextId))
+                                        onBack()
+                                    },
+                                    onPurchase = {
+                                        val shoppingList = client.createShoppingList(planId)
+                                        context.startActivity(ShoppingListActivity.intent(context, shoppingList.shoppingListId))
+                                        onBack()
+                                    },
+                                )
                             }
                         }
                         "INFEASIBLE" -> {
-                            item { Text("为什么无法执行", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+                            item { Text("No feasible cooking plan", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
                             item {
                                 FoodMindSurfaceCard { Column(Modifier.padding(16.dp)) {
-                                    if (value.reasons.isEmpty()) Text("当前食材无法满足所选菜谱，请调整后重试。", color = FoodMindMuted)
+                                    if (value.reasons.isEmpty()) Text("Current inventory cannot satisfy the selected recipes. Adjust the inputs and try again.", color = FoodMindMuted)
                                     else value.reasons.forEach { Text("• $it", color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp)) }
                                 } }
                             }
                             if (value.safeAlternatives.isNotEmpty()) {
-                                item { Text("安全替代方案", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+                                item { Text("Safe alternatives", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
                                 item { FoodMindSurfaceCard { Column(Modifier.padding(16.dp)) { value.safeAlternatives.forEach { Text("• $it", color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp)) } } } }
-                            }
-                            item {
-                                Button(
-                                    onClick = {
-                                        scope.launch {
-                                            runCatching { client.createCookingShoppingList(planId) }
-                                                .onSuccess { shopping -> context.startActivity(ShoppingListDetailActivity.intent(context, shopping.shoppingListId)) }
-                                                .onFailure { error = it.message ?: "Could not create shopping list." }
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) { Text("Create or open shopping list") }
                             }
                         }
                         else -> {
-                            item { Text("生成失败", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
+                            item { Text(if (value.errorCode == "TASK_CANCELLED") "Cooking plan cancelled" else "A plan could not be completed", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) }
                             item {
                                 FoodMindSurfaceCard { Column(Modifier.padding(16.dp)) {
-                                    Text(value.errorCode ?: "FAILED", color = FoodMindCoral, fontWeight = FontWeight.Bold)
-                                    value.errorMessage?.let { Text(it, color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp)) }
-                                    TextButton(onClick = { refresh++ }) { Text("重试") }
+                                    Text(
+                                        value.errorMessage ?: if (value.errorCode == "TASK_CANCELLED") "You cancelled this generation before it finished."
+                                        else "FoodMind could not finish this plan. Choose the recipes again or adjust the constraints.",
+                                        color = FoodMindMuted,
+                                    )
+                                    TextButton(onClick = onBack) { Text("Choose recipes") }
                                 } }
                             }
                         }
@@ -397,47 +482,68 @@ private fun CookingPlanDetailScreen(client: FoodMindApiClient, planId: String, o
 @Composable
 private fun ConfirmationForm(
     questions: List<CookingConfirmationQuestionResponse>,
-    purchaseOptionIds: Set<String>,
+    repairOptions: List<CookingRepairOptionResponse>,
+    decisions: List<CookingDecisionResponse>,
+    onSubmit: suspend (List<QuestionAnswerRequest>) -> Unit,
     onPurchase: suspend () -> Unit,
-    onSubmit: suspend (List<CookingQuestionAnswer>, Boolean) -> Unit,
 ) {
     var choices by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var texts by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var submitting by remember { mutableStateOf(false) }
-    var purchasing by remember { mutableStateOf(false) }
     var submitError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val answers = buildCookingQuestionAnswers(questions, choices, texts)
-    val canSubmit = canSubmitCookingQuestions(questions, choices, texts)
+    val strategyQuestion = questions.firstOrNull { it.fieldPath == "repair_strategy" }
+    val remainingQuestions = if (strategyQuestion == null) questions else emptyList()
+    val purchasePreview = remember(repairOptions) { parsePurchasePreview(repairOptions) }
+    val reduceDecision = decisions.firstOrNull { it.optionType == "reduce_servings" }
+    val strategyChoice = strategyQuestion?.let { choices[it.questionId] }
+    val purchaseOptionIds = decisions.filter { it.optionType == "purchase" }.map { it.optionId }.toSet()
+    val selectedIsPurchase = strategyChoice in purchaseOptionIds
+    val requiredMissing = (if (strategyQuestion == null) questions else listOf(strategyQuestion)).any { question ->
+        question.required && when (question.responseType) {
+            "CHOICE" -> choices[question.questionId].isNullOrBlank()
+            else -> (texts[question.questionId] ?: question.suggestedValue.orEmpty()).isBlank()
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        questions.forEach { question ->
+        strategyQuestion?.let { question ->
+            FoodMindSurfaceCard { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("INVENTORY SHORTAGE", color = FoodMindGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(question.prompt, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Reducing portions rechecks inventory. Buying opens a shopping list that remains available after you leave the app.", color = FoodMindMuted, fontSize = 12.sp)
+                question.options.forEach { option ->
+                    val selected = choices[question.questionId] == option.value
+                    val choose = { choices = choices + (question.questionId to option.value); submitError = null }
+                    if (selected) Button(onClick = choose, modifier = Modifier.fillMaxWidth()) { Text(option.label) }
+                    else OutlinedButton(onClick = choose, modifier = Modifier.fillMaxWidth()) { Text(option.label) }
+                }
+                if (!selectedIsPurchase) (reduceDecision?.payload as? Map<*, *>)?.get("servings")?.let { servings ->
+                    val servingLabel = servings.toString().removeSuffix(".0")
+                    Text("FoodMind will recheck this plan at $servingLabel ${if (servingLabel == "1") "serving" else "servings"}.", color = FoodMindMuted, fontSize = 12.sp)
+                }
+                Text(if (question.required) "Choose one option" else "Optional", color = FoodMindFaint, fontSize = 11.sp)
+            } }
+            if (selectedIsPurchase && purchasePreview.isNotEmpty()) {
+                FoodMindSurfaceCard { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Shopping list preview", fontWeight = FontWeight.Bold)
+                    purchasePreview.forEach { item ->
+                        Text("${item.first} · ${item.second}", color = FoodMindMuted)
+                    }
+                } }
+            }
+        }
+        remainingQuestions.forEach { question ->
             FoodMindSurfaceCard { Column(Modifier.padding(14.dp)) {
                 Text(question.prompt, fontWeight = FontWeight.Bold)
                 when (question.responseType) {
                     "CHOICE" -> question.options.forEach { option ->
                         val selected = choices[question.questionId] == option.value
-                        val chooseOption: () -> Unit = {
-                            if (option.value in purchaseOptionIds) {
-                                scope.launch {
-                                    purchasing = true; submitError = null
-                                    runCatching { onPurchase() }
-                                        .onFailure { submitError = "Could not create or open the shopping list. Please try again." }
-                                    purchasing = false
-                                }
-                            } else {
-                                choices = choices + (question.questionId to option.value)
-                            }
-                            Unit
-                        }
                         Row(
-                            Modifier.fillMaxWidth().clickable(enabled = !purchasing, onClick = chooseOption).padding(vertical = 6.dp),
+                            Modifier.fillMaxWidth().clickable { choices = choices + (question.questionId to option.value) }.padding(vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            RadioButton(selected, chooseOption, enabled = !purchasing)
-                            Text(
-                                if (purchasing && option.value in purchaseOptionIds) "Opening shopping list…" else option.label,
-                                modifier = Modifier.padding(start = 6.dp),
-                            )
+                            RadioButton(selected, { choices = choices + (question.questionId to option.value) })
+                            Text(option.label, modifier = Modifier.padding(start = 6.dp))
                         }
                     }
                     else -> OutlinedTextField(
@@ -449,33 +555,163 @@ private fun ConfirmationForm(
             } }
         }
         submitError?.let { Text(it, color = FoodMindCoral) }
-        val submit: (Boolean) -> Unit = { asynchronous ->
-            if (!canSubmit) {
-                submitError = "Answer every required question before submitting."
-            } else {
-                scope.launch {
-                    submitting = true; submitError = null
-                    runCatching { onSubmit(answers, asynchronous) }.onFailure { submitError = "提交确认失败，请重试。" }
-                    submitting = false
+        Button(onClick = {
+            val answers = buildList {
+                questions.forEach { q ->
+                    when (q.responseType) {
+                        "CHOICE" -> choices[q.questionId]?.let { add(QuestionAnswerRequest(q.questionId, it)) }
+                        else -> (texts[q.questionId] ?: q.suggestedValue.orEmpty()).trim().takeIf(String::isNotEmpty)?.let { add(QuestionAnswerRequest(q.questionId, it)) }
+                    }
                 }
             }
+            scope.launch {
+                submitting = true; submitError = null
+                runCatching { if (selectedIsPurchase) onPurchase() else onSubmit(answers) }
+                    .onFailure { submitError = friendlyCookingError(it, "Could not continue this plan. Please try again.") }
+                submitting = false
+            }
+        }, enabled = !submitting && !requiredMissing, modifier = Modifier.fillMaxWidth()) {
+            Text(if (submitting) "Continuing…" else if (selectedIsPurchase) "Open shopping list" else "Reduce portions and recheck")
         }
-        Button(onClick = { submit(true) }, enabled = canSubmit && !submitting && !purchasing, modifier = Modifier.fillMaxWidth()) { Text(if (submitting) "提交中…" else "后台确认并生成") }
-        OutlinedButton(onClick = { submit(false) }, enabled = canSubmit && !submitting && !purchasing, modifier = Modifier.fillMaxWidth()) { Text("同步确认并生成") }
     }
+}
+
+private fun parsePurchasePreview(repairOptions: List<CookingRepairOptionResponse>): List<Pair<String, String>> {
+    val regex = Regex("""Purchase\s+([\d.]+)\s+(\S+)\s+of\s+'([^']+)'""")
+    return repairOptions
+        .filter { it.optionType == "purchase" }
+        .mapNotNull { option ->
+            val match = regex.find(option.description) ?: return@mapNotNull null
+            match.groupValues[3] to "${match.groupValues[1]} ${match.groupValues[2]}"
+        }
+}
+
+// ---------------------------------------------------------------------------
+// Execution board — locally simulated. The backend contract has no
+// /cooking-plans/{planId}/execution endpoint, so the lanes and the
+// expectedEventId optimistic concurrency (409 semantics) run on-device from
+// the plan timeline. Swap computeExecutionBoard for API calls when available.
+// ---------------------------------------------------------------------------
+
+private enum class BoardState { PENDING, IN_PROGRESS, COMPLETED }
+
+private data class SavedCookingExecution(
+    val states: Map<String, BoardState>,
+    val eventId: Int,
+)
+
+/** Keeps the Web execution-board behavior after an Activity or app restart. */
+private object CookingExecutionStore {
+    private const val FILE = "foodmind_cooking_execution"
+
+    fun load(context: Context, planId: String, taskIds: List<String>): SavedCookingExecution {
+        val raw = context.getSharedPreferences(FILE, Context.MODE_PRIVATE).getString(planId, null)
+        val json = runCatching { raw?.let(::JSONObject) }.getOrNull()
+        val storedStates = json?.optJSONObject("states")
+        val states = taskIds.associateWith { taskId ->
+            runCatching { BoardState.valueOf(storedStates?.optString(taskId).orEmpty()) }
+                .getOrDefault(BoardState.PENDING)
+        }
+        return SavedCookingExecution(states, json?.optInt("eventId", 0) ?: 0)
+    }
+
+    fun save(context: Context, planId: String, states: Map<String, BoardState>, eventId: Int) {
+        val stateJson = JSONObject()
+        states.forEach { (taskId, state) -> stateJson.put(taskId, state.name) }
+        val json = JSONObject().put("eventId", eventId).put("states", stateJson)
+        context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+            .putString(planId, json.toString())
+            .apply()
+    }
+}
+
+private data class ExecutionBoard(
+    val available: List<CookingTimelineTaskResponse>,
+    val inProgress: List<CookingTimelineTaskResponse>,
+    val completed: List<CookingTimelineTaskResponse>,
+    val blocked: List<Pair<CookingTimelineTaskResponse, String>>,
+    val expectedEventId: String,
+)
+
+private fun computeExecutionBoard(
+    tasks: List<CookingTimelineTaskResponse>,
+    states: Map<String, BoardState>,
+    eventId: Int,
+): ExecutionBoard {
+    val ordered = tasks.sortedBy { it.startMinute }
+    val completed = ordered.filter { states[it.taskId] == BoardState.COMPLETED }
+    val inProgress = ordered.filter { states[it.taskId] == BoardState.IN_PROGRESS }
+    val available = mutableListOf<CookingTimelineTaskResponse>()
+    val blocked = mutableListOf<Pair<CookingTimelineTaskResponse, String>>()
+    var offered = false
+    ordered.forEachIndexed { index, task ->
+        val state = states[task.taskId]
+        if (state == BoardState.COMPLETED || state == BoardState.IN_PROGRESS) return@forEachIndexed
+        val depsDone = ordered.take(index).all { states[it.taskId] == BoardState.COMPLETED }
+        val resourceFree = inProgress.none { active -> active.resources.any { task.resources.contains(it) } }
+        if (!offered && depsDone && resourceFree) {
+            available.add(task); offered = true
+        } else {
+            val reasons = mutableListOf<String>()
+            if (!depsDone) reasons.add("Waiting for the previous step")
+            if (!resourceFree) reasons.add("A shared resource is still in use")
+            blocked.add(task to reasons.joinToString(" · "))
+        }
+    }
+    return ExecutionBoard(available, inProgress, completed, blocked, "evt-$eventId")
+}
+
+@Composable
+private fun BoardLane(
+    title: String,
+    tasks: List<CookingTimelineTaskResponse>,
+    tone: Color,
+    modifier: Modifier = Modifier,
+    reason: (CookingTimelineTaskResponse) -> String? = { null },
+    action: @Composable (CookingTimelineTaskResponse) -> Unit = {},
+) {
+    FoodMindSurfaceCard(modifier) { Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(9.dp).background(tone, CircleShape))
+            Text(title.uppercase(), fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = .5.sp, modifier = Modifier.padding(start = 8.dp))
+            Text(" ${tasks.size}", color = FoodMindFaint, fontSize = 11.sp)
+        }
+        tasks.forEach { task ->
+            Card(
+                colors = CardDefaults.cardColors(containerColor = FoodMindSurfaceRaised),
+                border = BorderStroke(1.dp, FoodMindLineSoft),
+                shape = RoundedCornerShape(13.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+            ) { Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(task.instruction, fontWeight = FontWeight.Medium)
+                        Text(
+                            "${task.durationMinutes} min · starts ${task.startMinute / 60}:${String.format(Locale.ROOT, "%02d", task.startMinute % 60)}${if (task.workMode == "PASSIVE") " · passive" else ""}" +
+                                if (task.resources.isEmpty()) "" else " · ${task.resources.joinToString("/")}",
+                            color = FoodMindMuted,
+                            fontSize = 11.sp,
+                        )
+                        reason(task)?.let { Text(it, color = FoodMindCoral, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp)) }
+                    }
+                    action(task)
+                }
+            } }
+        }
+    } }
 }
 
 internal fun buildCookingQuestionAnswers(
     questions: List<CookingConfirmationQuestionResponse>,
     choices: Map<String, String>,
     texts: Map<String, String>,
-): List<CookingQuestionAnswer> = buildList {
+): List<QuestionAnswerRequest> = buildList {
     questions.forEach { question ->
         val value = when (question.responseType) {
             "CHOICE" -> choices[question.questionId]
             else -> texts[question.questionId] ?: question.suggestedValue
         }?.trim().orEmpty()
-        if (value.isNotEmpty()) add(CookingQuestionAnswer(question.questionId, value))
+        if (value.isNotEmpty()) add(QuestionAnswerRequest(question.questionId, value))
     }
 }
 

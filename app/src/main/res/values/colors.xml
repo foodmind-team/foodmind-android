@@ -2,20 +2,22 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="foodmind_ink">#17241D</color>
-    <color name="foodmind_muted">#657269</color>
-    <color name="foodmind_faint">#87928A</color>
-    <color name="foodmind_paper">#FBFCF8</color>
-    <color name="foodmind_line">#E2E9E2</color>
-    <color name="foodmind_line_soft">#EDF1ED</color>
-    <color name="foodmind_green_950">#143D2D</color>
-    <color name="foodmind_green_900">#194A36</color>
-    <color name="foodmind_green_700">#287354</color>
-    <color name="foodmind_green_100">#DCEFE4</color>
-    <color name="foodmind_green_50">#EEF7F0</color>
+    <color name="foodmind_ink">#F1F4F0</color>
+    <color name="foodmind_muted">#98A29A</color>
+    <color name="foodmind_faint">#69736B</color>
+    <color name="foodmind_paper">#0D100D</color>
+    <color name="foodmind_surface">#151915</color>
+    <color name="foodmind_primary_ink">#11170F</color>
+    <color name="foodmind_line">#343B34</color>
+    <color name="foodmind_line_soft">#272D27</color>
+    <color name="foodmind_green_950">#11170F</color>
+    <color name="foodmind_green_900">#17261C</color>
+    <color name="foodmind_green_700">#79B78E</color>
+    <color name="foodmind_green_100">#B9DFC3</color>
+    <color name="foodmind_green_50">#192118</color>
     <color name="foodmind_lime">#D9EF74</color>
-    <color name="foodmind_coral">#F17A5B</color>
-    <color name="foodmind_coral_dark">#D75E40</color>
+    <color name="foodmind_coral">#E38A7B</color>
+    <color name="foodmind_coral_dark">#A9433B</color>
     <color name="foodmind_peach">#F8DDD0</color>
     <color name="foodmind_peach_ink">#8C4F32</color>
     <color name="foodmind_lilac">#E9E0F5</color>
@@ -30,5 +32,5 @@
     <color name="foodmind_progress_green">#58A37B</color>
     <color name="foodmind_progress_orange">#E79959</color>
     <color name="foodmind_progress_blue">#74A8BC</color>
-    <color name="foodmind_progress_track">#EDF0EC</color>
+    <color name="foodmind_progress_track">#2C342D</color>
 </resources>

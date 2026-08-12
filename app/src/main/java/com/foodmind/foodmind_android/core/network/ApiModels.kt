@@ -73,11 +73,6 @@ data class ReplacePreferencesRequest(
     val preferredMealTypes: List<String> = emptyList(),
 )
 
-data class HardConstraintSummary(
-    val requiredDietaryTagCodes: List<String> = emptyList(),
-    val allergens: List<AllergenPreference> = emptyList(),
-)
-
 data class UserPreferencesResponse(
     val budgetMin: Double? = null,
     val budgetMax: Double? = null,
@@ -97,10 +92,6 @@ data class UserPreferencesResponse(
     val dietaryTagCodes: List<String> = emptyList(),
     val allergens: List<AllergenPreference> = emptyList(),
     val preferredMealTypes: List<String> = emptyList(),
-    val hardConstraints: HardConstraintSummary = HardConstraintSummary(),
-    val createdAt: String? = null,
-    val updatedAt: String? = null,
-    val version: Long = 0,
 )
 
 data class CatalogueReferenceItem(val id: String, val code: String, val name: String)
@@ -488,29 +479,20 @@ data class RecommendationResponse(
     val traceId: String? = null,
     val status: String? = null,
     val modelStatus: String? = null,
-    val modelVersion: String? = null,
     val fallbackStatus: String? = null,
-    val fallbackVersion: String? = null,
-    val createdAt: String? = null,
-    val completedAt: String? = null,
     val items: List<RecommendationCandidateResponse> = emptyList(),
     val candidates: List<RecommendationCandidateResponse> = emptyList(),
 )
 
 data class RecommendationCandidateResponse(
     val candidateId: String? = null,
-    val candidateSourceType: String? = null,
     val placeMealId: String? = null,
-    val foodRecordId: String? = null,
     val mealId: String? = null,
     val mealName: String? = null,
     val placeId: String? = null,
     val placeName: String? = null,
     val area: String? = null,
     val price: RecommendationMoneyResponse? = null,
-    val priceKind: String? = null,
-    val recordOwnerDisplayName: String? = null,
-    val recordOccurredAt: String? = null,
     val recommendationType: String? = null,
     val rank: Int? = null,
     val reasonCodes: List<String> = emptyList(),
@@ -552,16 +534,48 @@ data class CookingIngredientRequest(
     val source: String? = null,
 )
 
+data class UserRecipeRequest(
+    val name: String,
+    val servings: Int,
+    val imageUrl: String? = null,
+    val tags: List<String> = emptyList(),
+    val allergenHints: List<String> = emptyList(),
+    val ingredients: List<String>,
+    val steps: List<String>,
+)
+
+data class UserRecipeResponse(
+    val id: String,
+    val name: String,
+    val servings: Int,
+    val imageUrl: String? = null,
+    val tags: List<String> = emptyList(),
+    val allergenHints: List<String> = emptyList(),
+    val ingredients: List<String> = emptyList(),
+    val steps: List<String> = emptyList(),
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
+    val version: Long = 0,
+)
+
+data class UserRecipePageResponse(
+    val items: List<UserRecipeResponse> = emptyList(),
+    val page: Int = 0,
+    val size: Int = 20,
+    val totalItems: Long = 0,
+    val totalPages: Int = 0,
+    val hasNext: Boolean = false,
+)
+
 data class GenerateCookingPlanRequest(
     val ingredients: List<CookingIngredientRequest> = emptyList(),
+    val recipeIds: List<String> = emptyList(),
     val servings: Int = 2,
     val maxMinutes: Int? = null,
     val maxBudget: Double? = null,
     val currency: String? = null,
     val requiredDietaryTagCodes: List<String> = emptyList(),
     val avoidAllergenCodes: List<String> = emptyList(),
-    val recipeIds: List<String> = emptyList(),
-    val servingAt: String? = null,
     val region: String? = null,
 )
 
@@ -696,7 +710,7 @@ data class CookingPolicySourceResponse(
     val url: String,
 )
 
-data class CookingQuestionAnswer(
+data class QuestionAnswerRequest(
     val questionId: String,
     val value: String,
 )
@@ -732,149 +746,6 @@ data class CookingPlanTaskResponse(
     val progress: CookingPlanTaskProgressResponse? = null,
 )
 
-data class InventoryLotRequest(
-    val ingredientName: String,
-    val quantity: Double,
-    val unit: String,
-    val expiryDate: String? = null,
-)
-
-data class InventoryLotResponse(
-    val lotId: String = "",
-    val ingredientName: String = "",
-    val quantity: Double = 0.0,
-    val reserved: Double = 0.0,
-    val available: Double = 0.0,
-    val unit: String = "",
-    val expiryDate: String? = null,
-    val purchasedAt: String = "",
-    val createdAt: String = "",
-    val updatedAt: String = "",
-    val version: Long = 0,
-)
-
-data class InventoryLotPageResponse(
-    val items: List<InventoryLotResponse> = emptyList(),
-    val page: Int = 0,
-    val size: Int = 20,
-    val totalItems: Long = 0,
-    val totalPages: Int = 0,
-    val hasNext: Boolean = false,
-)
-
-data class ShoppingListItemResponse(
-    val itemId: String = "",
-    val sequenceNo: Int = 0,
-    val ingredientName: String = "",
-    val requiredQuantity: Double = 0.0,
-    val purchasedQuantity: Double = 0.0,
-    val unit: String = "",
-    val expiryDate: String? = null,
-    val checked: Boolean = false,
-    val version: Long = 0,
-)
-
-data class ShoppingListResponse(
-    val shoppingListId: String = "",
-    val sourcePlanId: String = "",
-    val rootPlanId: String = "",
-    val originalServings: Int = 1,
-    val continuationPlanId: String? = null,
-    val status: String = "OPEN",
-    val checkedItemCount: Int = 0,
-    val totalItemCount: Int = 0,
-    val createdAt: String = "",
-    val updatedAt: String = "",
-    val completedAt: String? = null,
-    val version: Long = 0,
-    val items: List<ShoppingListItemResponse> = emptyList(),
-)
-
-data class ShoppingListPageResponse(
-    val items: List<ShoppingListResponse> = emptyList(),
-    val page: Int = 0,
-    val size: Int = 20,
-    val totalItems: Long = 0,
-    val totalPages: Int = 0,
-    val hasNext: Boolean = false,
-)
-
-data class UpdateShoppingListItemRequest(
-    val checked: Boolean,
-    val purchasedQuantity: Double,
-    val unit: String,
-    val expiryDate: String? = null,
-)
-
-data class UserRecipeRequest(
-    val name: String,
-    val servings: Int,
-    val imageUrl: String? = null,
-    val tags: List<String> = emptyList(),
-    val allergenHints: List<String> = emptyList(),
-    val ingredients: List<String>,
-    val steps: List<String>,
-)
-
-data class UserRecipeResponse(
-    val id: String = "",
-    val name: String = "",
-    val servings: Int = 1,
-    val imageUrl: String? = null,
-    val tags: List<String> = emptyList(),
-    val allergenHints: List<String> = emptyList(),
-    val ingredients: List<String> = emptyList(),
-    val steps: List<String> = emptyList(),
-    val createdAt: String = "",
-    val updatedAt: String = "",
-    val version: Long = 0,
-)
-
-data class UserRecipePageResponse(
-    val items: List<UserRecipeResponse> = emptyList(),
-    val page: Int = 0,
-    val size: Int = 20,
-    val totalItems: Long = 0,
-    val totalPages: Int = 0,
-    val hasNext: Boolean = false,
-)
-
-data class CreateRecipeImportRequest(val text: String)
-data class RecipeImportAnswer(val questionId: String, val value: String)
-data class RecipeImportAnswerRequest(val questionId: String, val value: String)
-data class RecipeImportAnswersRequest(val answers: List<RecipeImportAnswerRequest>)
-data class RecipeImportDraft(
-    val draftId: String = "",
-    val name: String? = null,
-    val servings: Int? = null,
-    val ingredients: List<String> = emptyList(),
-    val steps: List<String> = emptyList(),
-)
-data class RecipeImportQuestion(
-    val questionId: String = "",
-    val draftId: String = "",
-    val fieldPath: String = "",
-    val prompt: String = "",
-    val responseType: String = "TEXT",
-    val required: Boolean = true,
-    val suggestedValue: String? = null,
-)
-data class RecipeImportResponse(
-    val importId: String = "",
-    val text: String = "",
-    val status: String = "PROCESSING",
-    val drafts: List<RecipeImportDraft> = emptyList(),
-    val questions: List<RecipeImportQuestion> = emptyList(),
-    val answers: List<RecipeImportAnswer> = emptyList(),
-    val createdRecipes: List<UserRecipeResponse> = emptyList(),
-    val failureCode: String? = null,
-    val failureMessage: String? = null,
-    val createdAt: String = "",
-    val updatedAt: String = "",
-    val completedAt: String? = null,
-    val version: Long = 0,
-)
-
 data class CreateMediaUploadRequest(val contentType: String, val byteSize: Long, val checksumSha256: String)
 data class MediaUploadInstructionResponse(
     val mediaAssetId: String = "", val status: String = "", val uploadUrl: String = "",
@@ -887,7 +758,6 @@ data class MediaAssetResponse(
 
 data class ApiFieldError(
     val field: String? = null,
-    val code: String? = null,
     val message: String? = null,
 )
 
