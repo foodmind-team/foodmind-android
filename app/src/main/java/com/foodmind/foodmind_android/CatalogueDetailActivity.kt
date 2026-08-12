@@ -115,7 +115,9 @@ private suspend fun loadCatalogueDetail(client: FoodMindApiClient, type: String,
             facts = buildList {
                 add("Area" to place.area)
                 place.addressText?.let { add("Address" to it) }
-                place.priceBand?.let { add("Price range" to "$".repeat(it.coerceIn(1, 4))) }
+                val amounts = place.offerings.mapNotNull { it.price.amount.takeIf { a -> a > 0.0 } }
+                if (amounts.size > 1) add("Price range" to "${formatMoney(amounts.min(), place.offerings.first().price.currency)} – ${formatMoney(amounts.max(), place.offerings.first().price.currency)}")
+                else if (amounts.size == 1) add("Price" to formatMoney(amounts.first(), place.offerings.first().price.currency))
                 add("Visible meals" to "${place.offerings.size} items")
                 add("Evidence observations" to "${place.observations.size} items")
             },
@@ -129,7 +131,7 @@ private suspend fun loadCatalogueDetail(client: FoodMindApiClient, type: String,
             description = product.description,
             tags = product.dietaryTagCodes,
             facts = buildList {
-                product.price?.let { add("Reference price" to "${it.amount} ${it.currency}") }
+                product.price?.let { add("Reference price" to formatMoney(it.amount, it.currency)) }
                 product.place?.let { add("Place" to "${it.name} · ${it.area}") }
             },
             warnings = product.allergenCodes,
@@ -143,8 +145,7 @@ private suspend fun loadCatalogueDetail(client: FoodMindApiClient, type: String,
             tags = meal.dietaryTagCodes,
             facts = buildList {
                 meal.defaultSpiceLevel?.let { add("Default spice level" to it.toString()) }
-                add("Available at" to "${meal.offerings.size} ")
-                meal.offerings.firstOrNull()?.let { add("Price examples" to "${it.price.amount} ${it.price.currency}") }
+                meal.offerings.firstOrNull()?.let { add("Price examples" to formatMoney(it.price.amount, it.price.currency)) }
             },
             warnings = meal.allergenCodes,
         )
@@ -158,7 +159,7 @@ private suspend fun loadCatalogueDetail(client: FoodMindApiClient, type: String,
             facts = buildList {
                 add("Occurred at" to formatFoodMindTimestamp(record.occurredAt))
                 record.rating?.let { add("Rating" to it.toString()) }
-                record.price?.let { add("Spending" to "${it.amount} ${it.currency}") }
+                record.price?.let { add("Spending" to formatMoney(it.amount, it.currency)) }
                 record.wouldEatAgain?.let { add("Would eat again" to if (it) "Yes" else "No") }
             },
         )
