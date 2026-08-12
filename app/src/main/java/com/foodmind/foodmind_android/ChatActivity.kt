@@ -202,9 +202,10 @@ private fun ChatScreen(
                                     colors = CardDefaults.cardColors(containerColor = if (user) FoodMindGreenDark else FoodMindSurface),
                                     border = if (user) null else BorderStroke(1.dp, FoodMindLine),
                                 ) { Text(message.content.orEmpty(), Modifier.padding(15.dp), color = if (user) Color.White else FoodMindInk) }
-                                if (message.sources.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 5.dp)) {
+                                val groundedSources = message.sources.filter { !it.sourceId.isNullOrBlank() && !it.sourceType.isNullOrBlank() }
+                                if (message.role == "ASSISTANT" && message.route in setOf("SEARCH", "SUMMARY", "COMPARE") && groundedSources.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 5.dp)) {
                                     val ctx = LocalContext.current
-                                    message.sources.forEach { source -> AssistChip(onClick = {
+                                    groundedSources.forEach { source -> AssistChip(onClick = {
                                         source.sourceType?.let { type -> source.sourceId?.let { id -> ctx.startActivity(CatalogueDetailActivity.intent(ctx, type, id)) } }
                                     }, label = { Text(source.title ?: source.sourceType ?: "Source") }) }
                                 }
