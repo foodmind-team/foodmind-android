@@ -15,23 +15,30 @@ Android parity authority:
 | Food/drink history and CRUD | `HistoryActivity`, `RecordCollectionActivity`, `RecordEditorActivity`, `RecordDetailActivity` | `/history`, `/food-records/*`, `/drink-records/*`, `/media/*` |
 | Groups, invitations, members, feed, archive | `GroupsActivity`, `GroupWorkspaceActivity` | `/groups/*`, `/group-invitations/join` |
 | Explore, search, content details | `ExploreActivity`, `CatalogueDetailActivity` | `/explore`, `/search`, `/catalogue/*` |
-| Want to Try and recipes | `SavedActivity`, `RecipeLibraryActivity`, `RecipeEditorActivity` | `/want-to-try/*`; account-scoped local recipe drafts |
-| Manual and recipe cooking | `ManualCookingActivity`, `RecipeLibraryActivity`, `CookingPlanDetailActivity` | `/cooking-plans/*`, catalogue preference codes |
+| Want to Try and recipes | `SavedActivity`, `RecipeLibraryActivity`, `CookingRecipeEditorActivity` | `/want-to-try/*`, `/recipes/*`, `/recipe-imports/*` |
+| Cooking selection and preferences | `CookingHomeActivity`, `CookingSettingsActivity` | `/recipes`, `/cooking-plans/generate-async`, on-device cooking preferences |
+| Cooking history and live task progress | `CookingPlansActivity`, `CookingPlanDetailActivity` | `/cooking-plans/history`, `/cooking-plans/{id}`, `/task`, `/cancel` |
+| Shopping and real inventory | `ShoppingListsActivity`, `ShoppingListActivity`, `CookingInventoryActivity` | `/shopping-lists/*`, `/inventory/lots/*` |
+| Manual cooking | `ManualCookingActivity`, `CookingPlanDetailActivity` | `/cooking-plans/*`, catalogue preference codes |
 | Chat sessions, messages, references | `ChatListActivity`, `ChatActivity` | `/chat/sessions/*`, `/search` |
 | Dashboard and weekly recap | `DashboardActivity` | `/dashboard`, `/weekly-recaps/{weekStart}` |
 | Profile and preferences | `ProfileActivity`, `ProfileEditorActivity`, `PreferencesActivity` | `/users/me`, `/users/me/preferences`, recommendation history |
 
 ## Contract decision: recipes
 
-The current backend OpenAPI has no `/recipes` resource and
-`GenerateCookingPlanRequest` has no `recipeIds` property. Android therefore:
+The current backend OpenAPI exposes owner-scoped `/recipes` endpoints and
+`GenerateCookingPlanRequest.recipeIds`. The Web-aligned Android cooking flow therefore:
 
-1. stores recipe drafts locally in `SharedPreferences`, namespaced by authenticated user ID;
-2. labels them as device-local in the UI;
-3. scales the selected ingredient lines for target servings;
-4. sends at most 30 supported `CookingIngredientRequest` objects to
-   `POST /cooking-plans/generate`;
-5. never reports a local draft as server-persisted.
+1. reads recipe cards from `GET /recipes`;
+2. imports multilingual pasted recipes through the Agent-backed `/recipe-imports` workflow;
+3. reads, updates, and deletes account recipes through `/recipes/{id}`;
+4. sends the selected recipe IDs to `POST /cooking-plans/generate-async` and opens the processing detail immediately;
+5. polls task progress in the detail page, supports cancellation, and then renders the terminal plan;
+6. lets the backend reload the recipes and current inventory before planning;
+7. persists region, dietary, allergen, and local execution-board progress on-device.
+
+Legacy device-local drafts remain available to the older recipe-library flow, but are no
+longer the authority for the Web-aligned Cooking selection page.
 
 ## Session, media, and permission behavior
 
@@ -51,6 +58,7 @@ Local delivery gate:
 
 MockWebServer covers bearer headers, refresh rotation/retry, correlation IDs,
 idempotency headers, public endpoint paths, and optimistic-concurrency headers.
-The local gate passes with 24 unit tests. On-device instrumentation remains a
-separate gate because this workstation has no configured emulator or connected
-Android device.
+The local gate passes with the Android unit-test suite. A Pixel emulator regression also
+covered the five Cooking tabs, live backend recipe/inventory/shopping-list reads, backend
+recipe editing, immediate PROCESSING navigation, automatic READY transition, and execution
+progress restoration after force-stopping and reopening the app.
