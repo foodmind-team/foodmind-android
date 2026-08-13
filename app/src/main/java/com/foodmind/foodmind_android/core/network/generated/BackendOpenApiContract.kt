@@ -2,7 +2,7 @@
 package com.foodmind.foodmind_android.core.network.generated
 
 internal object BackendOpenApiContract {
-    const val SHA256 = "090b543693b6214f832a082e8856983f83fa20df5e88d95ff37900a8393be91d"
+    const val SHA256 = "d69d74f995d46eb033d07e454dd2e8bf2436f5ea7d8557d027363e4828136942"
     val operations = setOf(
         "DELETE /chat/sessions/{sessionId}",
         "DELETE /drink-records/{id}",
@@ -165,14 +165,14 @@ internal object BackendOpenApiContract {
         "MediaAssetResponse" to setOf("byteSize", "contentType", "createdAt", "finalisedAt", "mediaAssetId", "status"),
         "MediaUploadInstructionResponse" to setOf("expiresAt", "mediaAssetId", "requiredHeaders", "status", "uploadUrl"),
         "PageResponse" to setOf("hasNext", "items", "page", "size", "totalItems", "totalPages"),
-        "PostChatMessageRequest" to setOf("content", "referenceIds", "route", "useSessionReferences"),
+        "PostChatMessageRequest" to setOf("content", "referenceIds", "route"),
         "RecipeImportAnswer" to setOf("questionId", "value"),
         "RecipeImportAnswerRequest" to setOf("questionId", "value"),
         "RecipeImportAnswersRequest" to setOf("answers"),
         "RecipeImportDraft" to setOf("draftId", "ingredients", "name", "servings", "steps"),
         "RecipeImportQuestion" to setOf("draftId", "fieldPath", "prompt", "questionId", "required", "responseType", "suggestedValue"),
         "RecipeImportResponse" to setOf("answers", "completedAt", "createdAt", "createdRecipes", "drafts", "failureCode", "failureMessage", "importId", "questions", "status", "text", "updatedAt", "version"),
-        "RecommendationCandidateResponse" to setOf("area", "candidateId", "candidateSourceType", "explanation", "foodRecordId", "mealId", "mealName", "placeId", "placeMealId", "placeName", "price", "priceKind", "rank", "reasonCodes", "reasons", "recommendationType", "recordOccurredAt", "recordOwnerDisplayName"),
+        "RecommendationCandidateResponse" to setOf("area", "candidateId", "candidateSourceType", "explanation", "foodRecordId", "mealId", "mealName", "modelScore", "placeId", "placeMealId", "placeName", "price", "priceKind", "rank", "reasonCodes", "reasons", "recommendationType", "recordOccurredAt", "recordOwnerDisplayName"),
         "RecommendationConstraintsRequest" to setOf("avoidAllergenCodes", "maxSpiceLevel", "minimumCleanlinessEvidenceScore", "requiredDietaryTagCodes"),
         "RecommendationFeedbackRequest" to setOf("booleanValue", "candidateId", "effectiveUntil", "eventType", "rating", "reasonCode", "resultingFoodRecordId"),
         "RecommendationFeedbackResponse" to setOf("booleanValue", "candidateId", "createdAt", "effectiveUntil", "eventType", "feedbackId", "rating", "reasonCode", "resultingFoodRecordId", "sessionId", "supervisedLabel"),
