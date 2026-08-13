@@ -2,6 +2,7 @@ package com.foodmind.foodmind_android
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.io.IOException
 
 class CookingRecipeImportTest {
     @Test
@@ -26,5 +27,17 @@ class CookingRecipeImportTest {
         assertEquals(true, canResumeRecipeImport("import-1", "Tomato toast", "  Tomato toast  "))
         assertEquals(false, canResumeRecipeImport("import-1", "Tomato toast", "Tomato soup"))
         assertEquals(false, canResumeRecipeImport(null, "Tomato toast", "Tomato toast"))
+    }
+
+    @Test
+    fun `recipe import errors preserve a useful retry action`() {
+        assertEquals(
+            "FoodMind could not reach the recipe service. Your text is still here—check your connection and try again.",
+            friendlyRecipeImportError(IOException("offline")),
+        )
+        assertEquals(
+            "The recipe import stopped before it could finish. Your text is still here—please try again.",
+            friendlyRecipeImportError(IllegalStateException("unexpected")),
+        )
     }
 }

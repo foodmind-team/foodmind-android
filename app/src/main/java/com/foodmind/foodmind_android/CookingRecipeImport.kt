@@ -46,8 +46,10 @@ import com.foodmind.foodmind_android.core.network.FoodMindApiClient
 import com.foodmind.foodmind_android.core.network.FoodMindSession
 import com.foodmind.foodmind_android.core.network.RecipeImportAnswerRequest
 import com.foodmind.foodmind_android.core.network.RecipeImportResponse
+import java.io.IOException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -125,7 +127,7 @@ internal fun RecipeImportComposerScreen(
                                         submittedText = value
                                         onImportCreated(it.importId)
                                     }
-                                    .onFailure { error = friendlyCookingError(it, "The Agent could not process this recipe. Please try again.") }
+                                    .onFailure { error = friendlyRecipeImportError(it) }
                                 busy = false
                             }
                         }
@@ -186,7 +188,7 @@ internal fun RecipeImportSessionScreen(
                     session = updated
                     if (updated.status == "COMPLETED") onCompleted(updated.createdRecipes.map { it.id })
                 }
-                .onFailure { error = friendlyCookingError(it, "The Agent could not process this recipe. Please try again.") }
+                .onFailure { error = friendlyRecipeImportError(it) }
             busy = false
         }
     }
@@ -352,7 +354,7 @@ private fun RecipeInputScrollbar(scrollState: ScrollState, modifier: Modifier = 
 }
 
 internal fun friendlyCookingError(failure: Throwable, fallback: String): String {
-    val code = (failure as? retrofit2.HttpException)?.code()
+    val code = (failure as? HttpException)?.code()
     return when (code) {
         401 -> "Your session has expired. Sign in again to continue."
         409 -> "This item changed on another screen. Reload it and try again."
@@ -360,5 +362,21 @@ internal fun friendlyCookingError(failure: Throwable, fallback: String): String 
         502, 503 -> "The Cooking Agent is temporarily unavailable. Your recipe text is still here—try again in a moment."
         504 -> "The Cooking Agent took too long to respond. Your recipe text is still here—please try again."
         else -> fallback
+    }
+}
+
+/**
+ * Keeps recipe-import failures actionable without exposing server internals.
+ * The composer deliberately keeps the entered text in place so retrying is
+ * safe after either network or server-side failures.
+ */
+internal fun friendlyRecipeImportError(failure: Throwable): String {
+    val sharedMessage = friendlyCookingError(failure, "")
+    if (sharedMessage.isNotBlank()) return sharedMessage
+
+    return when (failure) {
+        is IOException -> "FoodMind could not reach the recipe service. Your text is still here—check your connection and try again."
+        is HttpException -> "FoodMind could not import this recipe right now (server error ${failure.code()}). Your text is still here—please try again."
+        else -> "The recipe import stopped before it could finish. Your text is still here—please try again."
     }
 }
