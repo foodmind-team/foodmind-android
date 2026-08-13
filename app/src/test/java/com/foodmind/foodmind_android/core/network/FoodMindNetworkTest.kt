@@ -447,10 +447,13 @@ class FoodMindNetworkTest {
         assertEquals("你好", client.postChatMessage("session-1", "推荐晚餐").content)
         val sessionRequest = server.takeRequest()
         val messageRequest = server.takeRequest()
+        val body = JsonParser.parseString(messageRequest.body.readUtf8()).asJsonObject
 
         assertEquals("/api/v1/chat/sessions", sessionRequest.path)
         assertEquals("/api/v1/chat/sessions/session-1/messages", messageRequest.path)
         assertEquals("Bearer test-token", messageRequest.getHeader("Authorization"))
+        assertTrue(body.getAsJsonArray("referenceIds").isEmpty)
+        assertFalse(body.get("useSessionReferences").asBoolean)
     }
 
     @Test

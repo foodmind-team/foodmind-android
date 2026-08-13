@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BookmarkAdd
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -36,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
+import com.foodmind.foodmind_android.feature.chat.normaliseChatSourceType
 import kotlinx.coroutines.launch
 
 private data class CatalogueDetailData(
@@ -53,7 +55,20 @@ class CatalogueDetailActivity : ComponentActivity() {
         val sourceType = intent.getStringExtra(EXTRA_SOURCE_TYPE).orEmpty()
         val sourceId = intent.getStringExtra(EXTRA_SOURCE_ID).orEmpty()
         val client = foodMindApiClient()
-        setContent { FoodMindTheme { CatalogueDetailScreen(client, sourceType, sourceId, ::finish) } }
+        setContent {
+            FoodMindTheme {
+                CatalogueDetailScreen(client, sourceType, sourceId, ::finish) { chatSourceType ->
+                    startActivity(
+                        ChatActivity.intentWithSource(
+                            this,
+                            chatSourceType,
+                            sourceId,
+                            "Summarise this source using only the FoodMind information available to me.",
+                        ),
+                    )
+                }
+            }
+        }
     }
 
     companion object {
@@ -65,7 +80,13 @@ class CatalogueDetailActivity : ComponentActivity() {
 }
 
 @Composable
-private fun CatalogueDetailScreen(client: FoodMindApiClient, sourceType: String, sourceId: String, onBack: () -> Unit) {
+private fun CatalogueDetailScreen(
+    client: FoodMindApiClient,
+    sourceType: String,
+    sourceId: String,
+    onBack: () -> Unit,
+    onShareToChat: (String) -> Unit,
+) {
     var data by remember { mutableStateOf<CatalogueDetailData?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var saved by remember { mutableStateOf(false) }
@@ -98,6 +119,15 @@ private fun CatalogueDetailScreen(client: FoodMindApiClient, sourceType: String,
                         enabled = !saved,
                         modifier = Modifier.fillMaxWidth(),
                     ) { Icon(Icons.Outlined.BookmarkAdd, null); Text(if (saved) "Added to Want to Try" else "Add to Want to Try", modifier = Modifier.padding(start = 8.dp)) }
+                    normaliseChatSourceType(sourceType)?.let { chatSourceType ->
+                        Button(
+                            onClick = { onShareToChat(chatSourceType) },
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        ) {
+                            Icon(Icons.Outlined.ChatBubbleOutline, null)
+                            Text("Share to FoodMind Chat", modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
                     Text("This screen shows only fields returned by the backend; it does not add nutrition, safety, or inventory claims.", color = FoodMindMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
                 }
             }

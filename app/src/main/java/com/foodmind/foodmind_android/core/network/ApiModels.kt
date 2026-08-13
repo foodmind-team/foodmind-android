@@ -427,6 +427,7 @@ data class ChatPageResponse<T>(
 data class PostChatMessageRequest(
     val content: String,
     val referenceIds: List<String>? = null,
+    val useSessionReferences: Boolean? = null,
     val route: String? = null,
 )
 

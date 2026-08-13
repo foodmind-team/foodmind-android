@@ -236,8 +236,16 @@ class FoodMindApiClient(
     suspend fun shareChatReference(sessionId: String, sourceType: String, sourceId: String) =
         api.shareChatReference(sessionId, ShareChatReferenceRequest(sourceType, sourceId))
 
-    suspend fun postChatMessage(sessionId: String, content: String, referenceIds: List<String>? = null): ChatMessageResponse =
-        api.postChatMessage(sessionId, PostChatMessageRequest(content, referenceIds))
+    suspend fun postChatMessage(
+        sessionId: String,
+        content: String,
+        referenceIds: List<String> = emptyList(),
+        useSessionReferences: Boolean = false,
+    ): ChatMessageResponse =
+        api.postChatMessage(
+            sessionId,
+            PostChatMessageRequest(content, referenceIds, useSessionReferences),
+        )
 
     suspend fun chatMessages(sessionId: String, after: String? = null): ChatPageResponse<ChatMessageResponse> =
         api.chatMessages(sessionId, after)
