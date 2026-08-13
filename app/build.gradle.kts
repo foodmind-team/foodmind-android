@@ -12,7 +12,7 @@ val debugApiBaseUrl = providers.gradleProperty("foodmind.debugApiBaseUrl")
 
 val releaseApiBaseUrl = providers.environmentVariable("FOODMIND_API_BASE_URL")
     .orElse(providers.gradleProperty("foodmind.apiBaseUrl"))
-    .orElse("https://api.foodmind.example/api/v1/")
+    .orElse("https://13.229.2.154.sslip.io/api/v1/")
 
 val validateReleaseApiBaseUrl by tasks.registering {
     group = "verification"
