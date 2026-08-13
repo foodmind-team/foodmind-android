@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddAPhoto
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.Button
@@ -226,7 +227,28 @@ class RecordDetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val type = intent.getStringExtra(EXTRA_TYPE) ?: "FOOD"; val id = intent.getStringExtra(EXTRA_ID).orEmpty(); val client = foodMindApiClient()
-        setContent { FoodMindTheme { RecordDetailScreen(client, type, id, ::finish, { startActivity(RecordEditorActivity.intent(this, type, id)) }, { finish() }) } }
+        setContent {
+            FoodMindTheme {
+                RecordDetailScreen(
+                    client,
+                    type,
+                    id,
+                    ::finish,
+                    { startActivity(RecordEditorActivity.intent(this, type, id)) },
+                    { finish() },
+                    {
+                        startActivity(
+                            ChatActivity.intentWithSource(
+                                this,
+                                "FOOD_RECORD",
+                                id,
+                                "Summarise this food record using only the FoodMind information available to me.",
+                            ),
+                        )
+                    },
+                )
+            }
+        }
     }
     companion object {
         private const val EXTRA_TYPE = "record_type"; private const val EXTRA_ID = "record_id"
@@ -235,7 +257,15 @@ class RecordDetailActivity : ComponentActivity() {
 }
 
 @Composable
-private fun RecordDetailScreen(client: FoodMindApiClient, type: String, id: String, onBack: () -> Unit, onEdit: () -> Unit, onDeleted: () -> Unit) {
+private fun RecordDetailScreen(
+    client: FoodMindApiClient,
+    type: String,
+    id: String,
+    onBack: () -> Unit,
+    onEdit: () -> Unit,
+    onDeleted: () -> Unit,
+    onShareToChat: () -> Unit,
+) {
     var seed by remember { mutableStateOf<RecordFormSeed?>(null) }; var error by remember { mutableStateOf<String?>(null) }; var refresh by remember { mutableIntStateOf(0) }; val scope = rememberCoroutineScope()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh++ }
     LaunchedEffect(id, refresh) { runCatching { if (type == "DRINK") client.drinkRecord(id).let { RecordFormSeed(it.drinkName, it.shopNameSnapshot, it.occurredAt, it.price?.amount?.toString().orEmpty(), it.price?.currency ?: "", it.rating?.toString().orEmpty(), it.comment.orEmpty(), it.visibility, it.wouldBuyAgain, it.sweetnessLevel?.toString().orEmpty(), it.iceLevel?.toString().orEmpty(), it.groupId.orEmpty(), it.mediaAssetId, it.version) } else client.foodRecord(id).let { RecordFormSeed(it.mealNameSnapshot, it.placeNameSnapshot.orEmpty(), it.occurredAt, it.price?.amount?.toString().orEmpty(), it.price?.currency ?: "", it.rating?.toString().orEmpty(), it.comment.orEmpty(), it.visibility, it.wouldEatAgain, groupId = it.groupId.orEmpty(), mediaAssetId = it.mediaAssetId, version = it.version) } }.onSuccess { seed = it }.onFailure { error = "Could not load records." } }
@@ -245,6 +275,12 @@ private fun RecordDetailScreen(client: FoodMindApiClient, type: String, id: Stri
         else LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item { Text(data.name, fontSize = 29.sp, fontWeight = FontWeight.ExtraBold); Text(listOf(data.place, formatFoodMindTimestamp(data.occurredAt)).filter(String::isNotBlank).joinToString(" · "), color = FoodMindMuted) }
             item { FoodMindSurfaceCard { Column { listOf("Price" to listOf(data.price, data.currency).filter(String::isNotBlank).joinToString(" "), "Rating" to data.rating, "Visibility" to data.visibility, "Choose again" to when (data.repeat) { true -> "Yes"; false -> "No"; null -> "Not recorded" }).forEach { (label, value) -> Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) { Text(label, Modifier.weight(1f), color = FoodMindMuted); Text(value.ifBlank { "Not recorded" }, Modifier.weight(1f)) } } } } }
+            if (type == "FOOD") item {
+                Button(onClick = onShareToChat, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.ChatBubbleOutline, null)
+                    Text("Share to FoodMind Chat", Modifier.padding(start = 8.dp))
+                }
+            }
             if (data.comment.isNotBlank()) item { FoodMindSurfaceCard { Column { Text("Comment", fontWeight = FontWeight.Bold); Text(data.comment, Modifier.padding(top = 7.dp)) } } }
             if (data.mediaAssetId != null) item { Text("This record references an uploaded image asset: ${data.mediaAssetId}", color = FoodMindMuted, fontSize = 12.sp) }
             error?.let { item { Text(it, color = FoodMindCoral) } }
