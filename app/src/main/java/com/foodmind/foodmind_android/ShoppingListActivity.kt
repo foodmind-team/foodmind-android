@@ -22,7 +22,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -95,7 +94,7 @@ private fun ShoppingListsScreen(client: FoodMindApiClient, onBack: () -> Unit, o
                     border = BorderStroke(1.dp, FoodMindLineSoft),
                 ) {
                     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text("${list.status} · ${list.originalServings} servings", color = FoodMindGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(list.status, color = FoodMindGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         Text("${list.checkedItemCount} of ${list.totalItemCount} purchased", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         Text(if (list.status == "COMPLETED") "Purchases committed to inventory" else "Tap to continue shopping", color = FoodMindMuted, fontSize = 12.sp)
                     }
@@ -155,8 +154,8 @@ private fun ShoppingListScreen(client: FoodMindApiClient, shoppingListId: String
                 ) {
                     item {
                         Text("${list.status} · ${list.checkedItemCount}/${list.totalItemCount} PURCHASED", color = FoodMindGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        Text("Buy ingredients for ${list.originalServings} servings.", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
-                        Text("Update the real amount you bought and check every item. Inventory is written only when you continue.", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp))
+                        Text("Shopping list", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("Check off each item as you shop.", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp))
                         LinearProgressIndicator(
                             progress = { if (list.totalItemCount == 0) 0f else list.checkedItemCount.toFloat() / list.totalItemCount },
                             modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
@@ -214,21 +213,23 @@ private fun ShoppingItemEditor(
     editable: Boolean,
     onSave: suspend (UpdateShoppingListItemRequest) -> Unit,
 ) {
-    var quantity by remember(item.version) { mutableStateOf((item.purchasedQuantity ?: item.requiredQuantity).toString()) }
-    var unit by remember(item.version) { mutableStateOf(item.unit) }
-    var expiry by remember(item.version) { mutableStateOf(item.expiryDate.orEmpty()) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val valid = quantity.toDoubleOrNull()?.let { it > 0 } == true && unit.isNotBlank()
 
     fun save(checked: Boolean) {
-        if (!valid) return
         scope.launch {
             saving = true
             error = null
             runCatching {
-                onSave(UpdateShoppingListItemRequest(checked, quantity.toDouble(), unit.trim(), expiry.ifBlank { null }))
+                onSave(
+                    UpdateShoppingListItemRequest(
+                        checked = checked,
+                        purchasedQuantity = item.purchasedQuantity ?: item.requiredQuantity,
+                        unit = item.unit,
+                        expiryDate = null,
+                    ),
+                )
             }.onFailure { error = friendlyCookingError(it, "Could not update this item. Please try again.") }
             saving = false
         }
@@ -237,19 +238,8 @@ private fun ShoppingItemEditor(
     FoodMindSurfaceCard {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = item.checked, onCheckedChange = { save(it) }, enabled = editable && valid && !saving)
-                Column(Modifier.weight(1f)) {
-                    Text(item.ingredientName, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Text("Need ${item.requiredQuantity} ${item.unit}", color = FoodMindGreen, fontSize = 12.sp)
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(quantity, { quantity = it }, label = { Text("Purchased") }, enabled = editable, modifier = Modifier.weight(1f), singleLine = true)
-                OutlinedTextField(unit, { unit = it.take(16) }, label = { Text("Unit") }, enabled = editable, modifier = Modifier.weight(1f), singleLine = true)
-            }
-            OutlinedTextField(expiry, { expiry = it }, label = { Text("Expiry date (YYYY-MM-DD, optional)") }, enabled = editable, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            if (editable) OutlinedButton(onClick = { save(item.checked) }, enabled = valid && !saving, modifier = Modifier.fillMaxWidth()) {
-                Text(if (saving) "Saving…" else "Save details")
+                Checkbox(checked = item.checked, onCheckedChange = { save(it) }, enabled = editable && !saving)
+                Text(item.ingredientName, modifier = Modifier.weight(1f), fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
             error?.let { Text(it, color = FoodMindCoral, fontSize = 12.sp) }
         }
