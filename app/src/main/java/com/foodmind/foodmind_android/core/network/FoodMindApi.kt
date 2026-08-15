@@ -47,6 +47,13 @@ interface FoodMindApi {
     @GET("catalogue/places/{id}")
     suspend fun place(@Path("id") id: String): CataloguePlaceResponse
 
+    @GET("catalogue/places/{id}/walking-route")
+    suspend fun walkingRoute(
+        @Path("id") id: String,
+        @Query("originLatitude") originLatitude: Double,
+        @Query("originLongitude") originLongitude: Double,
+    ): WalkingRouteResponse
+
     @GET("catalogue/products/{id}")
     suspend fun product(@Path("id") id: String): CatalogueProductResponse
 

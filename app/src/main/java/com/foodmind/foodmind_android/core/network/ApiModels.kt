@@ -115,6 +115,13 @@ data class CatalogueMealResponse(
     val offerings: List<CatalogueMealOffering> = emptyList(),
 )
 data class CatalogueCoordinates(val latitude: Double = 0.0, val longitude: Double = 0.0)
+data class WalkingRouteResponse(
+    val origin: CatalogueCoordinates = CatalogueCoordinates(),
+    val destination: CatalogueCoordinates = CatalogueCoordinates(),
+    val distanceMeters: Long = 0,
+    val durationSeconds: Long = 0,
+    val coordinates: List<List<Double>> = emptyList(),
+)
 data class CataloguePlaceObservation(
     val id: String = "", val observationType: String = "", val score: Double = 0.0,
     val note: String? = null, val sourceKind: String = "", val observedAt: String = "",

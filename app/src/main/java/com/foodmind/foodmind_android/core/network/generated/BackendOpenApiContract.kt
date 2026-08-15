@@ -2,7 +2,7 @@
 package com.foodmind.foodmind_android.core.network.generated
 
 internal object BackendOpenApiContract {
-    const val SHA256 = "1cbf34c1e83d7ac35c18eb939eb7fd7a13f673bb738aff67495b0d897dddb19c"
+    const val SHA256 = "0b199633dd065e5094cb3e29221d97d38dba7d6928543f4d02c001b0f40a1ad9"
     val operations = setOf(
         "DELETE /chat/sessions/{sessionId}",
         "DELETE /drink-records/{id}",
@@ -14,6 +14,7 @@ internal object BackendOpenApiContract {
         "DELETE /want-to-try/{id}",
         "GET /catalogue/meals/{id}",
         "GET /catalogue/places/{id}",
+        "GET /catalogue/places/{id}/walking-route",
         "GET /catalogue/products/{id}",
         "GET /catalogue/reference-data",
         "GET /chat/sessions",
@@ -194,6 +195,7 @@ internal object BackendOpenApiContract {
         "UpdateShoppingListItemRequest" to setOf("checked", "expiryDate", "purchasedQuantity", "unit"),
         "UserRecipeRequest" to setOf("allergenHints", "imageUrl", "ingredients", "name", "servings", "steps", "tags"),
         "UserRecipeResponse" to setOf("allergenHints", "createdAt", "id", "imageUrl", "ingredients", "name", "servings", "steps", "tags", "updatedAt", "version"),
+        "WalkingRouteResponse" to setOf("coordinates", "destination", "distanceMeters", "durationSeconds", "origin"),
         "WantToTryResponse" to setOf("createdAt", "id", "note", "source", "sourceAvailable", "sourceId", "sourceType"),
         "WantToTrySourceSummary" to setOf("groupId", "imageReference", "occurredAt", "ownerUserId", "snippet", "subtitle", "title", "visibility"),
         "WeeklyRecapResponse" to setOf("empty", "metrics", "spendingTotals", "timeZone", "weekStart"),
