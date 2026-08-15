@@ -16,6 +16,7 @@ interface ChatRepository {
     suspend fun messages(sessionId: String, after: String? = null): ChatPageResponse<ChatMessageResponse>
     suspend fun postMessage(
         sessionId: String,
+        idempotencyKey: String,
         content: String,
         referenceIds: List<String> = emptyList(),
         useSessionReferences: Boolean = false,
@@ -39,10 +40,11 @@ class DefaultChatRepository(
     override suspend fun messages(sessionId: String, after: String?) = apiClient.chatMessages(sessionId, after)
     override suspend fun postMessage(
         sessionId: String,
+        idempotencyKey: String,
         content: String,
         referenceIds: List<String>,
         useSessionReferences: Boolean,
-    ) = apiClient.postChatMessage(sessionId, content, referenceIds, useSessionReferences)
+    ) = apiClient.postChatMessage(sessionId, idempotencyKey, content, referenceIds, useSessionReferences)
 
     override suspend fun search(query: String, types: String?) = apiClient.search(query, types)
     override suspend fun shareReference(sessionId: String, sourceType: String, sourceId: String) =

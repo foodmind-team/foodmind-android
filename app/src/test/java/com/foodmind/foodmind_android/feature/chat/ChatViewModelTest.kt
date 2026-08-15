@@ -121,6 +121,7 @@ internal class FakeChatRepository : ChatRepository {
     var postedContent: String? = null
     var postedReferenceIds: List<String>? = null
     var postedUseSessionReferences: Boolean? = null
+    val postedIdempotencyKeys = mutableListOf<String>()
     var postFailuresRemaining = 0
     var postAttempts = 0
     var requestedCursor: String? = null
@@ -143,11 +144,13 @@ internal class FakeChatRepository : ChatRepository {
 
     override suspend fun postMessage(
         sessionId: String,
+        idempotencyKey: String,
         content: String,
         referenceIds: List<String>,
         useSessionReferences: Boolean,
     ): ChatMessageResponse {
         postAttempts += 1
+        postedIdempotencyKeys += idempotencyKey
         postedContent = content
         postedReferenceIds = referenceIds
         postedUseSessionReferences = useSessionReferences

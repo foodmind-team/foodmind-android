@@ -238,14 +238,25 @@ class FoodMindApiClient(
 
     suspend fun postChatMessage(
         sessionId: String,
+        idempotencyKey: String,
         content: String,
         referenceIds: List<String> = emptyList(),
         useSessionReferences: Boolean = false,
     ): ChatMessageResponse =
         api.postChatMessage(
             sessionId,
+            idempotencyKey,
             PostChatMessageRequest(content, referenceIds, useSessionReferences),
         )
+
+    suspend fun postChatMessage(
+        sessionId: String,
+        content: String,
+        referenceIds: List<String> = emptyList(),
+        useSessionReferences: Boolean = false,
+    ): ChatMessageResponse = postChatMessage(
+        sessionId, UUID.randomUUID().toString(), content, referenceIds, useSessionReferences,
+    )
 
     suspend fun chatMessages(sessionId: String, after: String? = null): ChatPageResponse<ChatMessageResponse> =
         api.chatMessages(sessionId, after)

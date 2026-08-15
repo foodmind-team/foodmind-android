@@ -2,7 +2,7 @@
 package com.foodmind.foodmind_android.core.network.generated
 
 internal object BackendOpenApiContract {
-    const val SHA256 = "0e14d1889c2c8ba9df7c3c8ffefa4b838289d9088515bde740423f334980bb6b"
+    const val SHA256 = "e179d1e5971e999d5c792824ec075400596f2be172d7d41871707e3188f58612"
     val operations = setOf(
         "DELETE /chat/sessions/{sessionId}",
         "DELETE /drink-records/{id}",
@@ -106,7 +106,7 @@ internal object BackendOpenApiContract {
         "CatalogueReferenceDataResponse" to setOf("allergens", "cuisines", "dietaryTags", "mealTypes", "placeTypes"),
         "CatalogueReferenceItem" to setOf("code", "id", "name"),
         "ChatMessagePageResponse" to setOf("hasNext", "items", "nextCursor"),
-        "ChatMessageResponse" to setOf("agentTraceId", "content", "correlationId", "createdAt", "id", "responseStatus", "role", "route", "sessionId", "sources"),
+        "ChatMessageResponse" to setOf("agentTraceId", "content", "correlationId", "createdAt", "id", "responseStatus", "role", "route", "sessionId", "sources", "suggestedDestinations", "suggestedQuestions"),
         "ChatMessageSourceResponse" to setOf("referenceId", "sequenceNo", "snippet", "sourceId", "sourceType", "title"),
         "ChatReferenceResponse" to setOf("available", "createdAt", "id", "introducedByMessageId", "origin", "snippet", "sourceId", "sourceType", "title"),
         "ChatSessionPageResponse" to setOf("hasNext", "items", "nextCursor"),

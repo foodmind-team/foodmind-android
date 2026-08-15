@@ -137,6 +137,7 @@ tasks.register("apiCoverage") {
     group = "verification"
     description = "Requires Retrofit to declare every backend OpenAPI operation exactly once."
     notCompatibleWithConfigurationCache("Coverage reads and compares checked-in source files.")
+    mustRunAfter("apiGenerateContract")
     inputs.files(contractSnapshot, "app/src/main/java/com/foodmind/foodmind_android/core/network/FoodMindApi.kt")
     doLast {
         val expected = operations(contractSnapshot.asFile.readText())
@@ -163,6 +164,7 @@ tasks.register("apiCheck") {
     group = "verification"
     description = "Fails when the backend snapshot, generated metadata, or DTO schema manifest drifts."
     notCompatibleWithConfigurationCache("Contract checks compare sibling-repository and generated files.")
+    mustRunAfter("apiGenerateContract")
     dependsOn("apiCoverage")
     inputs.files(backendOpenApi, contractSnapshot, contractLock, generatedManifest)
     doLast {

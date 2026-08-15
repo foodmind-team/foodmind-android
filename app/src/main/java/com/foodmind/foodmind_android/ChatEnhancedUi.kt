@@ -72,6 +72,7 @@ import com.foodmind.foodmind_android.feature.chat.conversationSources
 import com.foodmind.foodmind_android.feature.chat.isGroundedChatAnswer
 import com.foodmind.foodmind_android.feature.chat.normaliseChatSourceType
 import com.foodmind.foodmind_android.feature.chat.quickActionsFor
+import com.foodmind.foodmind_android.feature.chat.suggestedQuestionsFor
 import com.foodmind.foodmind_android.feature.chat.visibleSessions
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -356,13 +357,23 @@ private fun EnhancedChatMessageItem(
             }
         }
         val quickActions = quickActionsFor(message)
-        if (message.route in setOf("OUT_OF_SCOPE", "UNSUPPORTED") || quickActions.isNotEmpty()) {
+        val suggestedQuestions = suggestedQuestionsFor(message)
+        if (message.route in setOf("OUT_OF_SCOPE", "UNSUPPORTED") ||
+            quickActions.isNotEmpty() || suggestedQuestions.isNotEmpty()
+        ) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.padding(top = 4.dp),
             ) {
-                if (message.route in setOf("OUT_OF_SCOPE", "UNSUPPORTED")) {
+                suggestedQuestions.forEachIndexed { index, prompt ->
+                    AssistChip(
+                        onClick = { onDraftChange(prompt) },
+                        label = { Text(prompt) },
+                        modifier = Modifier.testTag("suggested_question_$index"),
+                    )
+                }
+                if (message.route in setOf("OUT_OF_SCOPE", "UNSUPPORTED") && suggestedQuestions.isEmpty()) {
                     AssistChip(
                         onClick = { onDraftChange("Search my authorised FoodMind content for this topic.") },
                         label = { Text("Search my content") },
