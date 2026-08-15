@@ -56,8 +56,12 @@ fun OneMapPlaceMap(client: FoodMindApiClient, placeId: String, placeName: String
                 .onFailure { status = "Walking directions are temporarily unavailable." }
         }
     }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) routeFromDevice() else status = "Location permission is needed to show a walking route. Your location is not saved."
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true || permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
+            routeFromDevice()
+        } else {
+            status = "Location permission is needed to show a walking route. Your location is not saved."
+        }
     }
     FoodMindSurfaceCard {
         Column {
@@ -79,7 +83,11 @@ fun OneMapPlaceMap(client: FoodMindApiClient, placeId: String, placeName: String
                 },
             )
             Button(onClick = {
-                if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) routeFromDevice() else permission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    routeFromDevice()
+                } else {
+                    permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                }
             }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) { Icon(Icons.Outlined.LocationOn, null); Text("Use my location for walking route", Modifier.padding(start = 8.dp)) }
             status?.let { Text(it, color = FoodMindMuted, modifier = Modifier.padding(top = 8.dp)) }
         }
