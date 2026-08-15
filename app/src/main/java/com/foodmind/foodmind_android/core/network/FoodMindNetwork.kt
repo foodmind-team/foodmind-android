@@ -172,6 +172,7 @@ class FoodMindApiClient(
     suspend fun referenceData() = api.referenceData()
     suspend fun meal(id: String) = api.meal(id)
     suspend fun place(id: String) = api.place(id)
+    suspend fun walkingRoute(id: String, latitude: Double, longitude: Double) = api.walkingRoute(id, latitude, longitude)
     suspend fun product(id: String) = api.product(id)
 
     suspend fun logoutAll() {

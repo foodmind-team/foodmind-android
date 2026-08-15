@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
+import com.foodmind.foodmind_android.core.network.CatalogueCoordinates
 import com.foodmind.foodmind_android.feature.chat.normaliseChatSourceType
 import kotlinx.coroutines.launch
 
@@ -47,6 +48,8 @@ private data class CatalogueDetailData(
     val tags: List<String>,
     val facts: List<Pair<String, String>>,
     val warnings: List<String> = emptyList(),
+    val placeId: String? = null,
+    val coordinates: CatalogueCoordinates? = null,
 )
 
 class CatalogueDetailActivity : ComponentActivity() {
@@ -109,6 +112,7 @@ private fun CatalogueDetailScreen(
                     FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { detail.tags.forEach { AssistChip(onClick = {}, label = { Text(it) }) } }
                 }
                 item { FoodMindSurfaceCard { Column { Text("Information FoodMind can reference", fontWeight = FontWeight.Bold, fontSize = 18.sp); detail.facts.forEach { (label, value) -> Row(Modifier.fillMaxWidth().padding(top = 10.dp)) { Text(label, Modifier.weight(0.4f), color = FoodMindMuted); Text(value, Modifier.weight(0.6f), fontWeight = FontWeight.Medium) } } } } }
+                if (detail.placeId != null && detail.coordinates != null) item { OneMapPlaceMap(client, detail.placeId, detail.title, detail.coordinates) }
                 if (detail.warnings.isNotEmpty()) item { FoodMindSurfaceCard { Column { Text("Dietary and allergen context", fontWeight = FontWeight.Bold); detail.warnings.forEach { Text("• $it", color = FoodMindCoral, modifier = Modifier.padding(top = 6.dp)) } } } }
                 item {
                     Button(
@@ -152,6 +156,8 @@ private suspend fun loadCatalogueDetail(client: FoodMindApiClient, type: String,
                 add("Evidence observations" to "${place.observations.size} items")
             },
             warnings = place.observations.mapNotNull { it.note }.take(4),
+            placeId = place.id,
+            coordinates = place.coordinates,
         )
     }
     "FOOD_PRODUCT", "CURATED_PRODUCT" -> client.product(id).let { product ->
