@@ -68,10 +68,44 @@ class ChatRecoveryViewModelTest {
         advanceUntilIdle()
 
         assertEquals(2, repository.postAttempts)
+        assertEquals(1, repository.postedIdempotencyKeys.distinct().size)
         assertNull(viewModel.state.value.outgoingMessage)
         assertEquals("", viewModel.state.value.draft)
         assertEquals("", store.load("session-1"))
         assertEquals(listOf("USER", "ASSISTANT"), viewModel.state.value.messages.map { it.role })
+    }
+
+    @Test
+    fun failedOutgoingRestoresAcrossProcessAndRetryUsesSameIdempotencyKey() = runTest(dispatcher) {
+        val repository = FakeChatRepository().apply { postFailuresRemaining = 1 }
+        val store = InMemoryChatDraftStore()
+        val firstViewModel = ChatViewModel(repository, store)
+        firstViewModel.open(null)
+        advanceUntilIdle()
+        firstViewModel.updateDraft("Retry after restart")
+
+        firstViewModel.send()
+        advanceUntilIdle()
+
+        val failedKey = firstViewModel.state.value.outgoingMessage?.idempotencyKey
+        assertEquals(failedKey, store.loadOutgoing("session-1")?.idempotencyKey)
+
+        val restoredViewModel = ChatViewModel(repository, store)
+        restoredViewModel.open("session-1")
+        advanceUntilIdle()
+
+        assertEquals(OutgoingMessageStatus.FAILED, restoredViewModel.state.value.outgoingMessage?.status)
+        assertEquals(failedKey, restoredViewModel.state.value.outgoingMessage?.idempotencyKey)
+        assertEquals("Retry after restart", restoredViewModel.state.value.draft)
+
+        restoredViewModel.send()
+        advanceUntilIdle()
+
+        assertEquals(2, repository.postAttempts)
+        assertEquals(1, repository.postedIdempotencyKeys.distinct().size)
+        assertNull(restoredViewModel.state.value.outgoingMessage)
+        assertNull(store.loadOutgoing("session-1"))
+        assertEquals("", store.load("session-1"))
     }
 
     @Test
@@ -108,6 +142,7 @@ class ChatRecoveryViewModelTest {
 
 internal class InMemoryChatDraftStore : ChatDraftStore {
     private val drafts = mutableMapOf<String, String>()
+    private val outgoingMessages = mutableMapOf<String, OutgoingChatMessage>()
 
     override fun load(sessionId: String): String = drafts[sessionId].orEmpty()
 
@@ -117,5 +152,15 @@ internal class InMemoryChatDraftStore : ChatDraftStore {
 
     override fun clear(sessionId: String) {
         drafts.remove(sessionId)
+    }
+
+    override fun loadOutgoing(sessionId: String): OutgoingChatMessage? = outgoingMessages[sessionId]
+
+    override fun saveOutgoing(sessionId: String, outgoing: OutgoingChatMessage) {
+        outgoingMessages[sessionId] = outgoing
+    }
+
+    override fun clearOutgoing(sessionId: String) {
+        outgoingMessages.remove(sessionId)
     }
 }

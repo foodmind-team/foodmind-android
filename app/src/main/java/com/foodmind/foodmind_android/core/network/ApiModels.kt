@@ -442,6 +442,8 @@ data class ChatMessageResponse(
     val agentTraceId: String? = null,
     val createdAt: String? = null,
     val sources: List<ChatMessageSourceResponse> = emptyList(),
+    val suggestedQuestions: List<String> = emptyList(),
+    val suggestedDestinations: List<String> = emptyList(),
 )
 
 data class ChatMessageSourceResponse(

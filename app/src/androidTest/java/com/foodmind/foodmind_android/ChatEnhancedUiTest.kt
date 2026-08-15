@@ -107,6 +107,7 @@ class ChatEnhancedUiTest {
                         ),
                         outgoingMessage = OutgoingChatMessage(
                             localId = "local-1",
+                            idempotencyKey = "ui-test-idempotency-key",
                             content = "Please retry",
                             referenceIds = emptyList(),
                             referenceTitles = emptyList(),
