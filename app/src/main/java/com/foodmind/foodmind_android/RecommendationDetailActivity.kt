@@ -48,6 +48,7 @@ import com.foodmind.foodmind_android.core.network.GenerateRecommendationRequest
 import com.foodmind.foodmind_android.core.network.GroupResponse
 import com.foodmind.foodmind_android.core.network.RecommendationCandidateResponse
 import com.foodmind.foodmind_android.core.network.RecommendationFeedbackRequest
+import com.foodmind.foodmind_android.core.network.RecommendationDecisionProfileResponse
 import com.foodmind.foodmind_android.core.network.RecommendationResponse
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -84,6 +85,7 @@ private fun RecommendationDetailScreen(
                 val candidates = data.items.ifEmpty { data.candidates }.sortedBy { it.rank ?: Int.MAX_VALUE }.filterNot { it.candidateId in permanentlyHidden }
                 LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     item { Text("Clear choices, honest reasons", fontSize = 29.sp, fontWeight = FontWeight.ExtraBold); Text("${data.status} · ${data.fallbackStatus ?: "Standard path"}", color = FoodMindGreen); if (data.fallbackStatus?.contains("SUCCEEDED") == true) Text("The backend used a deterministic fallback because the smart path was unavailable.", color = FoodMindMuted, modifier = Modifier.padding(top = 5.dp)); notice?.let { Text(it, color = FoodMindGreen, modifier = Modifier.padding(top = 8.dp)) } }
+                    data.decisionProfile?.let { profile -> item { DecisionProfileCard(profile) } }
                     itemsIndexed(candidates, key = { _, item -> item.candidateId.orEmpty() }) { index, candidate ->
                         CandidateCard(index, candidate, candidate.candidateId in feedback, candidate.mealId in saved, candidate.candidateId in shared,
                             onPlace = { candidate.placeId?.let { onCatalogue("PLACE", it) } },
@@ -125,6 +127,40 @@ private fun RecommendationDetailScreen(
             },
             dismissButton = { TextButton(onClick = { pendingPermanentRejection = null }, enabled = !busy) { Text("Cancel") } },
         )
+    }
+}
+
+internal fun decisionProfileTitle(mode: String?) = when (mode) {
+    "CONSTRAINT_FOCUSED" -> "Shaped around your taste and needs"
+    "GROUP_GUIDED" -> "Informed by people you trust"
+    else -> "A balanced starting point"
+}
+
+internal fun decisionFactorLabel(factor: String) = when (factor) {
+    "SPICE_PREFERENCE" -> "Your spice preference"
+    "ALLERGEN_AVOIDANCE" -> "Your allergen exclusions"
+    "CUISINE_PREFERENCE" -> "Your liked cuisines"
+    "GROUP_MEMBER_RECORDS" -> "Authorized group food records"
+    else -> factor.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase)
+}
+
+@Composable
+private fun DecisionProfileCard(profile: RecommendationDecisionProfileResponse) {
+    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF6F0)), border = BorderStroke(1.dp, FoodMindGreen)) {
+        Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("WHY THIS SET", color = FoodMindGreen, fontWeight = FontWeight.Bold)
+            Text(decisionProfileTitle(profile.mode), fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+            Text(when (profile.mode) {
+                "CONSTRAINT_FOCUSED" -> "Your saved preferences filtered unsafe choices first and helped rank the valid options."
+                "GROUP_GUIDED" -> "Authorized group food records contributed evidence without exposing another member's identity or private rating."
+                else -> "No saved taste or group signal changed this session, so FoodMind used the strongest generally suitable candidates."
+            }, color = FoodMindMuted)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (profile.appliedFactors.isEmpty()) AssistChip(onClick = {}, label = { Text("New-user baseline") })
+                profile.appliedFactors.forEach { AssistChip(onClick = {}, label = { Text(decisionFactorLabel(it)) }) }
+            }
+            if (profile.groupMemberEvidenceCount > 0) Text("${profile.groupMemberEvidenceCount} authorized group record${if (profile.groupMemberEvidenceCount == 1) "" else "s"} supported the returned choices.", color = FoodMindGreen, fontWeight = FontWeight.SemiBold)
+        }
     }
 }
 

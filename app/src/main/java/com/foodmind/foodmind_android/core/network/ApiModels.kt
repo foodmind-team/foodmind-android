@@ -481,8 +481,15 @@ data class RecommendationResponse(
     val status: String? = null,
     val modelStatus: String? = null,
     val fallbackStatus: String? = null,
+    val decisionProfile: RecommendationDecisionProfileResponse? = null,
     val items: List<RecommendationCandidateResponse> = emptyList(),
     val candidates: List<RecommendationCandidateResponse> = emptyList(),
+)
+
+data class RecommendationDecisionProfileResponse(
+    val mode: String = "DEFAULT",
+    val appliedFactors: List<String> = emptyList(),
+    val groupMemberEvidenceCount: Int = 0,
 )
 
 data class RecommendationCandidateResponse(

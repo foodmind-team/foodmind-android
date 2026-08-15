@@ -2,7 +2,7 @@
 package com.foodmind.foodmind_android.core.network.generated
 
 internal object BackendOpenApiContract {
-    const val SHA256 = "6c2e059f53775a2ad2e7aa13d9a7e11710b65af52834179d06da0ea2b3641d89"
+    const val SHA256 = "4cd43382fbc91fc7aaf938dc70be5a2829393488e54d5c9908da76eb7c283c9e"
     val operations = setOf(
         "DELETE /chat/sessions/{sessionId}",
         "DELETE /drink-records/{id}",
@@ -174,10 +174,11 @@ internal object BackendOpenApiContract {
         "RecipeImportResponse" to setOf("answers", "completedAt", "createdAt", "createdRecipes", "drafts", "failureCode", "failureMessage", "importId", "questions", "status", "text", "updatedAt", "version"),
         "RecommendationCandidateResponse" to setOf("area", "candidateId", "candidateSourceType", "explanation", "foodRecordId", "mealId", "mealName", "modelScore", "placeId", "placeMealId", "placeName", "price", "priceKind", "rank", "reasonCodes", "reasons", "recommendationType", "recordOccurredAt", "recordOwnerDisplayName"),
         "RecommendationConstraintsRequest" to setOf("avoidAllergenCodes", "maxSpiceLevel", "minimumCleanlinessEvidenceScore", "requiredDietaryTagCodes"),
+        "RecommendationDecisionProfile" to setOf("appliedFactors", "groupMemberEvidenceCount", "mode"),
         "RecommendationFeedbackRequest" to setOf("booleanValue", "candidateId", "effectiveUntil", "eventType", "rating", "reasonCode", "resultingFoodRecordId"),
         "RecommendationFeedbackResponse" to setOf("booleanValue", "candidateId", "createdAt", "effectiveUntil", "eventType", "feedbackId", "rating", "reasonCode", "resultingFoodRecordId", "sessionId", "supervisedLabel"),
         "RecommendationMoney" to setOf("amount", "currency"),
-        "RecommendationResponse" to setOf("candidates", "completedAt", "createdAt", "fallbackStatus", "fallbackVersion", "items", "modelStatus", "modelVersion", "sessionId", "status", "traceId"),
+        "RecommendationResponse" to setOf("candidates", "completedAt", "createdAt", "decisionProfile", "fallbackStatus", "fallbackVersion", "items", "modelStatus", "modelVersion", "sessionId", "status", "traceId"),
         "RecommendationSessionSummary" to setOf("completedAt", "createdAt", "fallbackStatus", "fallbackVersion", "groupId", "returnedCandidateCount", "sessionId", "status"),
         "RefreshRequest" to setOf("clientType", "refreshToken"),
         "RegisterRequest" to setOf("clientType", "deviceLabel", "displayName", "email", "password", "timeZone"),
