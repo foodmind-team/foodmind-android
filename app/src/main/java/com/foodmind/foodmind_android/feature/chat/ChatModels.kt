@@ -20,6 +20,7 @@ enum class OutgoingMessageStatus {
 
 data class OutgoingChatMessage(
     val localId: String,
+    val idempotencyKey: String,
     val content: String,
     val referenceIds: List<String>,
     val referenceTitles: List<String>,
@@ -130,18 +131,36 @@ fun chatAnswerMode(message: ChatMessageResponse): ChatAnswerMode? {
     }
 }
 
-fun quickActionsFor(message: ChatMessageResponse): List<ChatDestination> = when (message.route) {
-    "NAVIGATION" -> listOf(
-        ChatDestination.INVENTORY,
-        ChatDestination.SHOPPING_LISTS,
-        ChatDestination.SAVED_RECIPES,
-    )
-    "OUT_OF_SCOPE", "UNSUPPORTED" -> listOf(
-        ChatDestination.RECOMMENDATIONS,
-        ChatDestination.COOKING_PLANS,
-        ChatDestination.EXPLORE,
-    )
-    else -> emptyList()
+fun suggestedQuestionsFor(message: ChatMessageResponse): List<String> =
+    message.suggestedQuestions
+        .asSequence()
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .distinct()
+        .take(3)
+        .toList()
+
+fun quickActionsFor(message: ChatMessageResponse): List<ChatDestination> {
+    val dynamic = message.suggestedDestinations
+        .mapNotNull { value ->
+            runCatching { ChatDestination.valueOf(value.trim().uppercase()) }.getOrNull()
+        }
+        .distinct()
+        .take(3)
+    if (dynamic.isNotEmpty()) return dynamic
+    return when (message.route) {
+        "NAVIGATION" -> listOf(
+            ChatDestination.INVENTORY,
+            ChatDestination.SHOPPING_LISTS,
+            ChatDestination.SAVED_RECIPES,
+        )
+        "OUT_OF_SCOPE", "UNSUPPORTED" -> listOf(
+            ChatDestination.RECOMMENDATIONS,
+            ChatDestination.COOKING_PLANS,
+            ChatDestination.EXPLORE,
+        )
+        else -> emptyList()
+    }
 }
 
 fun chatSourceTypeLabel(sourceType: String?): String = when (sourceType) {

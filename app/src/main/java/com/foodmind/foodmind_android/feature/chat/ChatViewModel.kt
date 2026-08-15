@@ -7,7 +7,6 @@ import com.foodmind.foodmind_android.core.network.ChatMessageResponse
 import com.foodmind.foodmind_android.core.network.ChatMessageSourceResponse
 import com.foodmind.foodmind_android.core.network.ChatReferenceResponse
 import com.foodmind.foodmind_android.core.network.ExploreItemResponse
-import java.io.IOException
 import java.util.UUID
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -16,7 +15,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
 
 class ChatViewModel(
     private val repository: ChatRepository,
@@ -42,8 +40,16 @@ class ChatViewModel(
                     ?: repository.createSession("FoodMind Chat")
                 val id = session.id ?: error("Chat session has no id")
                 val page = repository.messages(id)
+                val storedOutgoing = draftStore.loadOutgoing(id)
+                val outgoingAlreadyCompleted = storedOutgoing != null &&
+                    hasCompletedOutgoing(page.items, storedOutgoing)
+                val restoredOutgoing = storedOutgoing?.takeUnless { outgoingAlreadyCompleted }
+                if (outgoingAlreadyCompleted) {
+                    draftStore.clearOutgoing(id)
+                    draftStore.clear(id)
+                }
                 val restoredDraft = initialDraft.takeIf(String::isNotBlank)
-                    ?: draftStore.load(id)
+                    ?: if (outgoingAlreadyCompleted) "" else draftStore.load(id)
                 val reference = pendingSource?.let { source ->
                     val supportedType = normaliseChatSourceType(source.sourceType)
                         ?: error("Unsupported chat source")
@@ -57,6 +63,7 @@ class ChatViewModel(
                     hasMore = page.hasNext,
                     reference = reference,
                     draft = restoredDraft.take(CHAT_MESSAGE_LIMIT),
+                    outgoing = restoredOutgoing?.copy(status = OutgoingMessageStatus.FAILED),
                 )
             }.onSuccess { opened ->
                 _state.update {
@@ -69,6 +76,7 @@ class ChatViewModel(
                         hasMore = opened.hasMore,
                         draft = opened.draft,
                         attachedReferences = listOfNotNull(opened.reference),
+                        outgoingMessage = opened.outgoing,
                         errorMessage = null,
                         requiresLogin = false,
                     )
@@ -102,8 +110,15 @@ class ChatViewModel(
         val sessionId = snapshot.sessionId ?: return
         val content = snapshot.draft.trim()
         if (content.isBlank() || snapshot.isSending || content.length > CHAT_MESSAGE_LIMIT) return
+        val failedOutgoing = snapshot.outgoingMessage?.takeIf {
+            it.status == OutgoingMessageStatus.FAILED && it.content == content
+        }
+        if (failedOutgoing != null) {
+            return submit(sessionId, failedOutgoing)
+        }
         val outgoing = OutgoingChatMessage(
             localId = "local-${UUID.randomUUID()}",
+            idempotencyKey = UUID.randomUUID().toString(),
             content = content,
             referenceIds = snapshot.attachedReferences.mapNotNull(ChatReferenceResponse::id),
             referenceTitles = snapshot.attachedReferences.map {
@@ -127,11 +142,16 @@ class ChatViewModel(
         val snapshot = _state.value
         val outgoing = snapshot.outgoingMessage ?: return
         _state.update { it.copy(draft = outgoing.content, outgoingMessage = null, errorMessage = null) }
-        snapshot.sessionId?.let { draftStore.save(it, outgoing.content) }
+        snapshot.sessionId?.let {
+            draftStore.save(it, outgoing.content)
+            draftStore.clearOutgoing(it)
+        }
     }
 
     fun dismissFailedMessage() {
+        val sessionId = _state.value.sessionId
         _state.update { it.copy(outgoingMessage = null, errorMessage = null) }
+        sessionId?.let(draftStore::clearOutgoing)
     }
 
     private fun submit(sessionId: String, outgoing: OutgoingChatMessage) {
@@ -144,10 +164,12 @@ class ChatViewModel(
                 requiresLogin = false,
             )
         }
+        draftStore.saveOutgoing(sessionId, outgoing.copy(status = OutgoingMessageStatus.FAILED))
         viewModelScope.launch {
             runCatching {
                 repository.postMessage(
                     sessionId = sessionId,
+                    idempotencyKey = outgoing.idempotencyKey,
                     content = outgoing.content,
                     referenceIds = outgoing.referenceIds,
                     useSessionReferences = false,
@@ -160,11 +182,22 @@ class ChatViewModel(
                     content = outgoing.content,
                 )
                 draftStore.clear(sessionId)
-                _state.update {
-                    it.copy(
+                draftStore.clearOutgoing(sessionId)
+                _state.update { state ->
+                    val assistantExists = assistantMessage.id != null &&
+                        state.messages.any { it.id == assistantMessage.id }
+                    val userExists = state.messages.lastOrNull()?.let {
+                        it.role == "USER" && it.content == outgoing.content
+                    } == true
+                    val mergedMessages = buildList {
+                        addAll(state.messages)
+                        if (!userExists) add(optimisticUser)
+                        if (!assistantExists) add(assistantMessage)
+                    }
+                    state.copy(
                         isSending = false,
                         draft = "",
-                        messages = it.messages + optimisticUser + assistantMessage,
+                        messages = mergedMessages,
                         attachedReferences = emptyList(),
                         outgoingMessage = null,
                         errorMessage = null,
@@ -172,10 +205,12 @@ class ChatViewModel(
                     )
                 }
             }.onFailure { failure ->
+                val failedOutgoing = outgoing.copy(status = OutgoingMessageStatus.FAILED)
+                draftStore.saveOutgoing(sessionId, failedOutgoing)
                 _state.update {
                     it.copy(
                         isSending = false,
-                        outgoingMessage = outgoing.copy(status = OutgoingMessageStatus.FAILED),
+                        outgoingMessage = failedOutgoing,
                         errorMessage = failure.toChatMessage("Could not send the message."),
                         requiresLogin = failure.requiresLogin(),
                     )
@@ -301,6 +336,18 @@ class ChatViewModel(
         _state.update { it.copy(attachedReferences = emptyList()) }
     }
 
+    private fun hasCompletedOutgoing(
+        messages: List<ChatMessageResponse>,
+        outgoing: OutgoingChatMessage,
+    ): Boolean {
+        if (messages.size < 2) return false
+        val userMessage = messages[messages.lastIndex - 1]
+        val assistantMessage = messages.last()
+        return userMessage.role == "USER" &&
+            userMessage.content == outgoing.content &&
+            assistantMessage.role == "ASSISTANT"
+    }
+
     private data class OpenedChat(
         val id: String,
         val title: String,
@@ -309,6 +356,7 @@ class ChatViewModel(
         val hasMore: Boolean,
         val reference: ChatReferenceResponse?,
         val draft: String,
+        val outgoing: OutgoingChatMessage?,
     )
 
     class Factory(
@@ -321,14 +369,4 @@ class ChatViewModel(
             return ChatViewModel(repository, draftStore) as T
         }
     }
-}
-
-private fun Throwable.requiresLogin(): Boolean = this is HttpException && code() == 401
-
-private fun Throwable.toChatMessage(fallback: String): String = when {
-    requiresLogin() -> "Your session has expired. Please sign in again."
-    this is HttpException && code() == 403 -> "You no longer have access to this FoodMind source."
-    this is HttpException && code() == 404 -> "This conversation or source is no longer available."
-    this is IOException -> "Check your connection and try again."
-    else -> fallback
 }

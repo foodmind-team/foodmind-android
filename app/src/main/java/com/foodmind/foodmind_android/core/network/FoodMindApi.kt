@@ -203,6 +203,7 @@ interface FoodMindApi {
     @POST("chat/sessions/{sessionId}/messages")
     suspend fun postChatMessage(
         @retrofit2.http.Path("sessionId") sessionId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
         @Body request: PostChatMessageRequest,
     ): ChatMessageResponse
 
