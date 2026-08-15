@@ -43,6 +43,10 @@ fun OneMapPlaceMap(client: FoodMindApiClient, placeId: String, placeName: String
         val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         val location = runCatching { manager.getLastKnownLocation(LocationManager.GPS_PROVIDER) ?: manager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) }.getOrNull()
         if (location == null) { status = "Current location is unavailable. Turn on location and try again."; return }
+        if (!isInSingapore(location.latitude, location.longitude)) {
+            status = "Walking routes are available only when your current location is in Singapore."
+            return
+        }
         scope.launch {
             runCatching { client.walkingRoute(placeId, location.latitude, location.longitude) }
                 .onSuccess { route ->
@@ -81,6 +85,9 @@ fun OneMapPlaceMap(client: FoodMindApiClient, placeId: String, placeName: String
         }
     }
 }
+
+private fun isInSingapore(latitude: Double, longitude: Double): Boolean =
+    latitude in 1.13..1.48 && longitude in 103.60..104.10
 
 private fun mapHtml(name: String, point: CatalogueCoordinates): String {
     val safeName = name.replace("\\", "\\\\").replace("'", "\\'")
