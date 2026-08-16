@@ -2,6 +2,8 @@ package com.foodmind.foodmind_android
 
 import android.content.Intent
 import android.app.Activity
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
@@ -26,7 +28,7 @@ import org.junit.runner.RunWith
 /**
  * Opt-in, no-mock parity probe for the Compose client. The Web real-stack test
  * creates the shared account/data first; this test logs into the same backend
- * through 10.0.2.2 and verifies cross-client recipe and inventory visibility.
+ * through 10.0.2.2 and verifies cross-client recipe, inventory, and Explore image visibility.
  */
 @RunWith(AndroidJUnit4::class)
 class RealStackParityTest {
@@ -49,7 +51,7 @@ class RealStackParityTest {
     }
 
     @Test
-    fun webCreatedInventoryAndRecipeAreVisibleOnAndroid() {
+    fun webCreatedDataAndMinioImageAreVisibleOnAndroid() {
         launch(LoginActivity::class.java)
         composeRule.onNodeWithText("Email").performTextInput("parity-e2e-20260811@example.test")
         composeRule.onNodeWithText("Password").performTextInput("Real-stack-password-2026")
@@ -67,6 +69,15 @@ class RealStackParityTest {
 
         launch(ShoppingListsActivity::class.java)
         composeRule.onNodeWithText("Shopping lists").assertIsDisplayed()
+
+        launch(ExploreActivity::class.java)
+        assertLazyContentIsVisible("E2E MinIO image meal")
+        val loadedImage = SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "LOADED")
+        composeRule.waitUntil(timeoutMillis = 15_000) {
+            runCatching { composeRule.onAllNodes(loadedImage).fetchSemanticsNodes().isNotEmpty() }
+                .getOrDefault(false)
+        }
+        composeRule.onAllNodes(loadedImage).onFirst().assertIsDisplayed()
 
         launch(RecipeImportActivity::class.java)
         composeRule.onNodeWithText("Import recipes").assertIsDisplayed()

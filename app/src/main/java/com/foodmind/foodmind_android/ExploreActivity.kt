@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -43,14 +42,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.foodmind.foodmind_android.core.network.ExploreItemResponse
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
 import kotlinx.coroutines.launch
@@ -175,16 +170,12 @@ private fun ExploreCard(item: ExploreItemResponse, saved: Boolean, onOpen: () ->
         border = BorderStroke(1.dp, FoodMindLine),
     ) {
         Column {
-            if (!item.imageReference.isNullOrBlank()) AsyncImage(
+            AuthorisedImage(
                 model = item.imageReference,
                 contentDescription = item.title,
                 modifier = Modifier.fillMaxWidth().aspectRatio(if ((item.title?.length ?: 0) % 2 == 0) 0.9f else 1.15f).clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)),
-                contentScale = ContentScale.Crop,
-            ) else Box(
-                Modifier.fillMaxWidth().height(if ((item.title?.length ?: 0) % 2 == 0) 150.dp else 190.dp)
-                    .background(Brush.linearGradient(listOf(Color(0xFFDCEFE4), Color(0xFFF6ECC1)))),
-                contentAlignment = Alignment.Center,
-            ) { Text(item.sourceType.orEmpty().replace('_', ' '), color = FoodMindGreenDark, fontWeight = FontWeight.Bold) }
+                emptyLabel = item.sourceType.orEmpty().replace('_', ' '),
+            )
             Column(Modifier.padding(11.dp)) {
                 Text(item.title ?: "Untitled content", maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold, color = FoodMindInk)
                 item.snippet?.takeIf(String::isNotBlank)?.let { Text(it, color = FoodMindMuted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp)) }

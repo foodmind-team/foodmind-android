@@ -2,7 +2,7 @@
 package com.foodmind.foodmind_android.core.network.generated
 
 internal object BackendOpenApiContract {
-    const val SHA256 = "0b199633dd065e5094cb3e29221d97d38dba7d6928543f4d02c001b0f40a1ad9"
+    const val SHA256 = "bdfe4102d17e0ac888b958e1424d90b193407ad289cdbe3b7681310bd206da2b"
     val operations = setOf(
         "DELETE /chat/sessions/{sessionId}",
         "DELETE /drink-records/{id}",
@@ -142,11 +142,11 @@ internal object BackendOpenApiContract {
         "CurrentUserResponse" to setOf("createdAt", "displayName", "email", "id", "role", "status", "timeZone", "updatedAt", "version"),
         "DashboardMetricResponse" to setOf("code", "currency", "denominator", "dimension", "dimensionLabel", "empty", "label", "period", "samples", "unit", "value"),
         "DashboardResponse" to setOf("empty", "from", "groupBy", "metrics", "spendingTotals", "timeZone", "to"),
-        "DrinkRecordResponse" to setOf("comment", "createdAt", "drinkName", "groupId", "iceLevel", "id", "mediaAssetId", "occurredAt", "placeId", "price", "rating", "shopNameSnapshot", "sweetnessLevel", "updatedAt", "version", "visibility", "wouldBuyAgain"),
+        "DrinkRecordResponse" to setOf("comment", "createdAt", "drinkName", "groupId", "iceLevel", "id", "imageUrl", "mediaAssetId", "occurredAt", "placeId", "price", "rating", "shopNameSnapshot", "sweetnessLevel", "updatedAt", "version", "visibility", "wouldBuyAgain"),
         "ExplorePageResponse" to setOf("hasNext", "items", "nextCursor"),
         "ExploreResultResponse" to setOf("groupId", "imageReference", "occurredAt", "ownerUserId", "snippet", "sourceId", "sourceType", "subtitle", "title", "visibility"),
         "FoodRecordMoney" to setOf("amount", "currency"),
-        "FoodRecordResponse" to setOf("comment", "createdAt", "cuisineCode", "cuisineId", "cuisineName", "groupId", "id", "mealId", "mealNameSnapshot", "mediaAssetId", "occurredAt", "placeId", "placeNameSnapshot", "price", "rating", "updatedAt", "version", "visibility", "wouldEatAgain"),
+        "FoodRecordResponse" to setOf("comment", "createdAt", "cuisineCode", "cuisineId", "cuisineName", "groupId", "id", "imageUrl", "mealId", "mealNameSnapshot", "mediaAssetId", "occurredAt", "placeId", "placeNameSnapshot", "price", "rating", "updatedAt", "version", "visibility", "wouldEatAgain"),
         "GenerateCookingPlanRequest" to setOf("avoidAllergenCodes", "currency", "ingredients", "maxBudget", "maxMinutes", "recipeIds", "region", "requiredDietaryTagCodes", "servingAt", "servings"),
         "GenerateRecommendationRequest" to setOf("area", "constraints", "currency", "groupId", "latitude", "longitude", "maxBudget", "maxDistanceKm", "mealType", "mood", "parentSessionId", "requestedFor"),
         "GroupFeedItem" to setOf("actorDisplayName", "actorUserId", "foodRecordId", "mealNameSnapshot", "message", "occurredAt", "recommendationCandidateId", "recommendationShareId", "sourceId", "sourceType"),

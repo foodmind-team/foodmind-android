@@ -9,7 +9,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -46,6 +48,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -131,6 +134,41 @@ private data class RecordFormSeed(
     val comment: String = "", val visibility: String = "PRIVATE", val repeat: Boolean? = null,
     val sweetness: String = "", val ice: String = "", val groupId: String = "", val mediaAssetId: String? = null,
     val version: Long = 0,
+    val imageUrl: String? = null,
+)
+
+private fun DrinkRecordResponse.toFormSeed() = RecordFormSeed(
+    name = drinkName,
+    place = shopNameSnapshot,
+    occurredAt = occurredAt,
+    price = price?.amount?.toString().orEmpty(),
+    currency = price?.currency ?: "SGD",
+    rating = rating?.toString().orEmpty(),
+    comment = comment.orEmpty(),
+    visibility = visibility,
+    repeat = wouldBuyAgain,
+    sweetness = sweetnessLevel?.toString().orEmpty(),
+    ice = iceLevel?.toString().orEmpty(),
+    groupId = groupId.orEmpty(),
+    mediaAssetId = mediaAssetId,
+    version = version,
+    imageUrl = imageUrl,
+)
+
+private fun FoodRecordResponse.toFormSeed() = RecordFormSeed(
+    name = mealNameSnapshot,
+    place = placeNameSnapshot.orEmpty(),
+    occurredAt = occurredAt,
+    price = price?.amount?.toString().orEmpty(),
+    currency = price?.currency ?: "SGD",
+    rating = rating?.toString().orEmpty(),
+    comment = comment.orEmpty(),
+    visibility = visibility,
+    repeat = wouldEatAgain,
+    groupId = groupId.orEmpty(),
+    mediaAssetId = mediaAssetId,
+    version = version,
+    imageUrl = imageUrl,
 )
 
 class RecordEditorActivity : ComponentActivity() {
@@ -161,16 +199,17 @@ private fun RecordEditorScreen(
     var comment by remember { mutableStateOf("") }; var visibility by remember { mutableStateOf("PRIVATE") }; var repeat by remember { mutableStateOf<Boolean?>(null) }
     var sweetness by remember { mutableStateOf("") }; var ice by remember { mutableStateOf("") }; var groupId by remember { mutableStateOf("") }
     var mediaAssetId by remember { mutableStateOf<String?>(null) }; var selectedImage by remember { mutableStateOf<Uri?>(null) }
+    var imageUrl by remember { mutableStateOf<String?>(null) }
     var originalMediaAssetId by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }; var error by remember { mutableStateOf<String?>(null) }
     var version by remember { mutableStateOf(0L) }
     val scope = rememberCoroutineScope()
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selectedImage = it }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { selectedImage = it } }
     LaunchedEffect(id) {
         if (id != null) runCatching {
-            if (type == "DRINK") client.drinkRecord(id).let { RecordFormSeed(it.drinkName, it.shopNameSnapshot, it.occurredAt, it.price?.amount?.toString().orEmpty(), it.price?.currency ?: "SGD", it.rating?.toString().orEmpty(), it.comment.orEmpty(), it.visibility, it.wouldBuyAgain, it.sweetnessLevel?.toString().orEmpty(), it.iceLevel?.toString().orEmpty(), it.groupId.orEmpty(), it.mediaAssetId, it.version) }
-            else client.foodRecord(id).let { RecordFormSeed(it.mealNameSnapshot, it.placeNameSnapshot.orEmpty(), it.occurredAt, it.price?.amount?.toString().orEmpty(), it.price?.currency ?: "SGD", it.rating?.toString().orEmpty(), it.comment.orEmpty(), it.visibility, it.wouldEatAgain, groupId = it.groupId.orEmpty(), mediaAssetId = it.mediaAssetId, version = it.version) }
-        }.onSuccess { loaded -> seed = loaded; name = loaded.name; place = loaded.place; occurredAt = formatFoodMindTimestampForEditor(loaded.occurredAt); price = loaded.price; currency = loaded.currency; rating = loaded.rating; comment = loaded.comment; visibility = loaded.visibility; repeat = loaded.repeat; sweetness = loaded.sweetness; ice = loaded.ice; groupId = loaded.groupId; mediaAssetId = loaded.mediaAssetId; originalMediaAssetId = loaded.mediaAssetId; version = loaded.version }
+            if (type == "DRINK") client.drinkRecord(id).toFormSeed()
+            else client.foodRecord(id).toFormSeed()
+        }.onSuccess { loaded -> seed = loaded; name = loaded.name; place = loaded.place; occurredAt = formatFoodMindTimestampForEditor(loaded.occurredAt); price = loaded.price; currency = loaded.currency; rating = loaded.rating; comment = loaded.comment; visibility = loaded.visibility; repeat = loaded.repeat; sweetness = loaded.sweetness; ice = loaded.ice; groupId = loaded.groupId; mediaAssetId = loaded.mediaAssetId; originalMediaAssetId = loaded.mediaAssetId; imageUrl = loaded.imageUrl; version = loaded.version }
             .onFailure { error = "Could not load records." }
     }
     FoodMindDetailScaffold(if (id == null) "Add record" else "Edit record", onBack) { padding ->
@@ -188,8 +227,19 @@ private fun RecordEditorScreen(
             item { Text("Visibility", fontWeight = FontWeight.Bold); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("PRIVATE", "GROUP").forEach { FilterChip(visibility == it, { visibility = it }, label = { Text(if (it == "PRIVATE") "Only me" else "Groups") }) } }; if (visibility == "GROUP") OutlinedTextField(groupId, { groupId = it }, label = { Text("Group ID") }, modifier = Modifier.fillMaxWidth()) }
             item { Text(if (type == "DRINK") "Would buy again?" else "Would eat again?", fontWeight = FontWeight.Bold); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(true to "Yes", false to "No").forEach { (value, label) -> FilterChip(repeat == value, { repeat = value }, label = { Text(label) }) } } }
             item {
+                if (selectedImage != null || mediaAssetId != null || imageUrl != null) {
+                    AuthorisedImage(
+                        model = selectedImage ?: imageUrl,
+                        contentDescription = "Selected record image",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(4f / 3f)
+                            .clip(RoundedCornerShape(14.dp)),
+                        emptyLabel = "Image unavailable",
+                    )
+                }
                 OutlinedButton(onClick = { picker.launch("image/*") }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.AddAPhoto, null); Text(if (selectedImage != null) "New image selected" else if (mediaAssetId != null) "Replace uploaded image" else "Add image", modifier = Modifier.padding(start = 8.dp)) }
-                if (mediaAssetId != null || selectedImage != null) TextButton(onClick = { selectedImage = null; mediaAssetId = null }) { Text("Remove image") }
+                if (mediaAssetId != null || selectedImage != null) TextButton(onClick = { selectedImage = null; mediaAssetId = null; imageUrl = null }) { Text("Remove image") }
             }
             item {
                 error?.let { Text(it, color = FoodMindCoral) }
@@ -268,7 +318,7 @@ private fun RecordDetailScreen(
 ) {
     var seed by remember { mutableStateOf<RecordFormSeed?>(null) }; var error by remember { mutableStateOf<String?>(null) }; var refresh by remember { mutableIntStateOf(0) }; val scope = rememberCoroutineScope()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh++ }
-    LaunchedEffect(id, refresh) { runCatching { if (type == "DRINK") client.drinkRecord(id).let { RecordFormSeed(it.drinkName, it.shopNameSnapshot, it.occurredAt, it.price?.amount?.toString().orEmpty(), it.price?.currency ?: "", it.rating?.toString().orEmpty(), it.comment.orEmpty(), it.visibility, it.wouldBuyAgain, it.sweetnessLevel?.toString().orEmpty(), it.iceLevel?.toString().orEmpty(), it.groupId.orEmpty(), it.mediaAssetId, it.version) } else client.foodRecord(id).let { RecordFormSeed(it.mealNameSnapshot, it.placeNameSnapshot.orEmpty(), it.occurredAt, it.price?.amount?.toString().orEmpty(), it.price?.currency ?: "", it.rating?.toString().orEmpty(), it.comment.orEmpty(), it.visibility, it.wouldEatAgain, groupId = it.groupId.orEmpty(), mediaAssetId = it.mediaAssetId, version = it.version) } }.onSuccess { seed = it }.onFailure { error = "Could not load records." } }
+    LaunchedEffect(id, refresh) { runCatching { if (type == "DRINK") client.drinkRecord(id).toFormSeed() else client.foodRecord(id).toFormSeed() }.onSuccess { seed = it; error = null }.onFailure { error = "Could not load records." } }
     FoodMindDetailScaffold("Record details", onBack, actions = { IconButton(onClick = onEdit) { Icon(Icons.Outlined.Edit, "Edit") }; IconButton(onClick = { scope.launch { runCatching { if (type == "DRINK") client.deleteDrinkRecord(id) else client.deleteFoodRecord(id); seed?.mediaAssetId?.let { runCatching { client.deleteMediaAsset(it) } } }.onSuccess { onDeleted() }.onFailure { error = "Could not delete the record." } } }) { Icon(Icons.Outlined.DeleteOutline, "Delete") } }) { padding ->
         val data = seed
         if (data == null) Column(Modifier.padding(padding).padding(24.dp)) { if (error == null) CircularProgressIndicator() else Text(error!!, color = FoodMindCoral) }
@@ -282,7 +332,17 @@ private fun RecordDetailScreen(
                 }
             }
             if (data.comment.isNotBlank()) item { FoodMindSurfaceCard { Column { Text("Comment", fontWeight = FontWeight.Bold); Text(data.comment, Modifier.padding(top = 7.dp)) } } }
-            if (data.mediaAssetId != null) item { Text("This record references an uploaded image asset: ${data.mediaAssetId}", color = FoodMindMuted, fontSize = 12.sp) }
+            if (data.mediaAssetId != null) item {
+                AuthorisedImage(
+                    model = data.imageUrl,
+                    contentDescription = data.name,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(4f / 3f)
+                        .clip(RoundedCornerShape(14.dp)),
+                    emptyLabel = "Image unavailable",
+                )
+            }
             error?.let { item { Text(it, color = FoodMindCoral) } }
         }
     }
