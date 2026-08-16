@@ -6,10 +6,15 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -19,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,6 +54,7 @@ class LoginActivity : ComponentActivity() {
                     onEmailChange = viewModel::updateEmail,
                     onPasswordChange = viewModel::updatePassword,
                     onDisplayNameChange = viewModel::updateDisplayName,
+                    onPrivacyConsentChange = viewModel::updatePrivacyConsent,
                     onModeChange = viewModel::setRegistering,
                     onLogin = viewModel::login,
                     onBack = ::finish,
@@ -63,6 +70,7 @@ private fun LoginScreen(
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onDisplayNameChange: (String) -> Unit,
+    onPrivacyConsentChange: (Boolean) -> Unit,
     onModeChange: (Boolean) -> Unit,
     onLogin: () -> Unit,
     onBack: () -> Unit,
@@ -70,6 +78,7 @@ private fun LoginScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -97,10 +106,29 @@ private fun LoginScreen(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
+        if (state.registering) Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = state.privacyConsentAccepted,
+                    role = Role.Checkbox,
+                    onValueChange = onPrivacyConsentChange,
+                ),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Checkbox(
+                checked = state.privacyConsentAccepted,
+                onCheckedChange = null,
+            )
+            Text(
+                text = stringResource(R.string.privacy_collection_consent),
+                color = FoodMindMuted,
+            )
+        }
         state.errorMessageRes?.let { Text(stringResource(it), color = FoodMindCoral) }
         Button(
             onClick = onLogin,
-            enabled = !state.isLoading,
+            enabled = !state.isLoading && (!state.registering || state.privacyConsentAccepted),
             modifier = Modifier.fillMaxWidth(),
         ) {
             if (state.isLoading) CircularProgressIndicator()

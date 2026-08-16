@@ -29,4 +29,22 @@ class AuthViewModelTest {
         assertEquals(R.string.error_password_min_length, viewModel.state.value.errorMessageRes)
         assertFalse(viewModel.state.value.isLoading)
     }
+
+    @Test
+    fun registrationRequiresExplicitPrivacyConsent() {
+        val viewModel = AuthViewModel()
+        viewModel.setRegistering(true)
+        viewModel.updateDisplayName("Privacy Tester")
+        viewModel.updateEmail("privacy@example.com")
+        viewModel.updatePassword("password123")
+
+        viewModel.login()
+
+        assertEquals(R.string.error_privacy_consent_required, viewModel.state.value.errorMessageRes)
+        assertFalse(viewModel.state.value.isLoading)
+
+        viewModel.updatePrivacyConsent(true)
+        assertEquals(null, viewModel.state.value.errorMessageRes)
+        assertEquals(true, viewModel.state.value.privacyConsentAccepted)
+    }
 }
