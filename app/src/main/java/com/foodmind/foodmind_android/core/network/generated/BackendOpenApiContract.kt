@@ -2,7 +2,7 @@
 package com.foodmind.foodmind_android.core.network.generated
 
 internal object BackendOpenApiContract {
-    const val SHA256 = "bdfe4102d17e0ac888b958e1424d90b193407ad289cdbe3b7681310bd206da2b"
+    const val SHA256 = "2b96426a28fa49d5989e39b24119b4b9b80682a1a31b12043c5713273f034f69"
     val operations = setOf(
         "DELETE /chat/sessions/{sessionId}",
         "DELETE /drink-records/{id}",
@@ -88,6 +88,7 @@ internal object BackendOpenApiContract {
         "PUT /inventory/lots/{lotId}",
         "PUT /recipes/{id}",
         "PUT /users/me/preferences",
+        "PUT /users/me/preferences/cooking-region",
     )
     val schemaFields = mapOf(
         "AllergenPreference" to setOf("code", "severity"),
@@ -182,7 +183,7 @@ internal object BackendOpenApiContract {
         "RecommendationSessionSummary" to setOf("completedAt", "createdAt", "fallbackStatus", "fallbackVersion", "groupId", "returnedCandidateCount", "sessionId", "status"),
         "RefreshRequest" to setOf("clientType", "refreshToken"),
         "RegisterRequest" to setOf("clientType", "deviceLabel", "displayName", "email", "password", "timeZone"),
-        "ReplacePreferencesRequest" to setOf("allergens", "budgetMax", "budgetMin", "cleanlinessPriority", "currency", "dietaryTagCodes", "dislikedCuisineCodes", "drinkIcePreference", "drinkSweetnessPreference", "foodGoal", "likedCuisineCodes", "maxDistanceKm", "minimumCleanlinessEvidenceScore", "preferredArea", "preferredLatitude", "preferredLongitude", "preferredMealTypes", "spiceTolerance"),
+        "ReplacePreferencesRequest" to setOf("allergens", "budgetMax", "budgetMin", "cleanlinessPriority", "cookingRegion", "currency", "dietaryTagCodes", "dislikedCuisineCodes", "drinkIcePreference", "drinkSweetnessPreference", "foodGoal", "likedCuisineCodes", "maxDistanceKm", "minimumCleanlinessEvidenceScore", "preferredArea", "preferredLatitude", "preferredLongitude", "preferredMealTypes", "spiceTolerance"),
         "SaveWantToTryRequest" to setOf("note", "sourceId", "sourceType"),
         "SearchPageResponse" to setOf("hasNext", "items", "nextCursor"),
         "SearchResultResponse" to setOf("groupId", "imageReference", "occurredAt", "ownerUserId", "relevance", "snippet", "sourceId", "sourceType", "subtitle", "title", "visibility"),
@@ -190,6 +191,7 @@ internal object BackendOpenApiContract {
         "ShareRecommendationRequest" to setOf("message", "recommendationCandidateId"),
         "ShoppingListItemResponse" to setOf("checked", "expiryDate", "ingredientName", "itemId", "purchasedQuantity", "requiredQuantity", "sequenceNo", "unit", "version"),
         "ShoppingListResponse" to setOf("checkedItemCount", "completedAt", "continuationPlanId", "createdAt", "items", "originalServings", "rootPlanId", "shoppingListId", "sourcePlanId", "status", "totalItemCount", "updatedAt", "version"),
+        "UpdateCookingRegionRequest" to setOf("cookingRegion"),
         "UpdateCurrentUserRequest" to setOf("displayName", "timeZone"),
         "UpdateGroupRequest" to setOf("description", "name", "status"),
         "UpdateShoppingListItemRequest" to setOf("checked", "expiryDate", "purchasedQuantity", "unit"),

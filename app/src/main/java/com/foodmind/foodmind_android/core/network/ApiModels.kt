@@ -66,6 +66,7 @@ data class ReplacePreferencesRequest(
     val foodGoal: String? = null,
     val drinkSweetnessPreference: String? = null,
     val drinkIcePreference: String? = null,
+    val cookingRegion: String? = null,
     val likedCuisineCodes: List<String> = emptyList(),
     val dislikedCuisineCodes: List<String> = emptyList(),
     val dietaryTagCodes: List<String> = emptyList(),
@@ -87,12 +88,15 @@ data class UserPreferencesResponse(
     val foodGoal: String? = null,
     val drinkSweetnessPreference: String? = null,
     val drinkIcePreference: String? = null,
+    val cookingRegion: String = "SG",
     val likedCuisineCodes: List<String> = emptyList(),
     val dislikedCuisineCodes: List<String> = emptyList(),
     val dietaryTagCodes: List<String> = emptyList(),
     val allergens: List<AllergenPreference> = emptyList(),
     val preferredMealTypes: List<String> = emptyList(),
 )
+
+data class UpdateCookingRegionRequest(val cookingRegion: String)
 
 data class CatalogueReferenceItem(val id: String, val code: String, val name: String)
 data class CatalogueReferenceDataResponse(

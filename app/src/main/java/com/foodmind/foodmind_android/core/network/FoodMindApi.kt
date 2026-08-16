@@ -38,6 +38,9 @@ interface FoodMindApi {
     @PUT("users/me/preferences")
     suspend fun replacePreferences(@Body request: ReplacePreferencesRequest): UserPreferencesResponse
 
+    @PUT("users/me/preferences/cooking-region")
+    suspend fun updateCookingRegion(@Body request: UpdateCookingRegionRequest): UserPreferencesResponse
+
     @GET("catalogue/reference-data")
     suspend fun referenceData(): CatalogueReferenceDataResponse
 

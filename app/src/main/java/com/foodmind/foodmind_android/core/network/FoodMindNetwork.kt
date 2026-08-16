@@ -169,6 +169,7 @@ class FoodMindApiClient(
     suspend fun updateCurrentUser(request: UpdateCurrentUserRequest) = api.updateCurrentUser(request)
     suspend fun preferences() = api.preferences()
     suspend fun replacePreferences(request: ReplacePreferencesRequest) = api.replacePreferences(request)
+    suspend fun updateCookingRegion(request: UpdateCookingRegionRequest) = api.updateCookingRegion(request)
     suspend fun referenceData() = api.referenceData()
     suspend fun meal(id: String) = api.meal(id)
     suspend fun place(id: String) = api.place(id)

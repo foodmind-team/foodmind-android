@@ -57,7 +57,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -142,7 +141,6 @@ private fun CookingHomeScreen(
     var accountPreferences by remember { mutableStateOf<UserPreferencesResponse?>(null) }
     var preferencesError by remember { mutableStateOf<String?>(null) }
     var preferencesReload by remember { mutableStateOf(0) }
-    val context = LocalContext.current
     var selected by remember(preselectedIds) { mutableStateOf(preselectedIds) }
     var query by remember { mutableStateOf("") }
     var servings by remember { mutableStateOf("2") }
@@ -201,7 +199,6 @@ private fun CookingHomeScreen(
     LaunchedEffect(asyncToken) {
         if (asyncToken == 0) return@LaunchedEffect
         asyncRunning = true; asyncError = null
-        val cookingPreferences = CookingPreferencesStore.load(context)
         val safetyPreferences = accountPreferences ?: run {
             asyncError = "Load your dietary preferences before generating a plan."
             asyncRunning = false
@@ -211,7 +208,6 @@ private fun CookingHomeScreen(
             recipeIds = chosen.map(UserRecipeResponse::id),
             servings = targetServings,
             maxMinutes = maxMinutes.toIntOrNull(),
-            cookingPreferences = cookingPreferences,
             accountPreferences = safetyPreferences,
         )).onSuccess { accepted ->
             val planId = accepted.planId
@@ -365,13 +361,12 @@ internal fun buildCookingGenerationRequest(
     recipeIds: List<String>,
     servings: Int,
     maxMinutes: Int?,
-    cookingPreferences: CookingPreferences,
     accountPreferences: UserPreferencesResponse,
 ) = GenerateCookingPlanRequest(
     recipeIds = recipeIds,
     servings = servings,
     maxMinutes = maxMinutes,
-    region = cookingPreferences.region,
+    region = accountPreferences.cookingRegion,
     requiredDietaryTagCodes = accountPreferences.dietaryTagCodes,
     avoidAllergenCodes = accountPreferences.allergens.map { it.code },
 )

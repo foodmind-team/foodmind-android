@@ -7,20 +7,20 @@ import org.junit.Test
 
 class CookingGenerationRequestTest {
     @Test
-    fun `generation uses account safety preferences and local region`() {
+    fun `generation uses account safety preferences and account region`() {
         val request = buildCookingGenerationRequest(
             recipeIds = listOf("recipe-1"),
             servings = 4,
             maxMinutes = 45,
-            cookingPreferences = CookingPreferences(region = "SG"),
             accountPreferences = UserPreferencesResponse(
+                cookingRegion = "US",
                 dietaryTagCodes = listOf("VEGAN"),
                 allergens = listOf(AllergenPreference("PEANUT", "SEVERE")),
             ),
         )
 
         assertEquals(listOf("recipe-1"), request.recipeIds)
-        assertEquals("SG", request.region)
+        assertEquals("US", request.region)
         assertEquals(listOf("VEGAN"), request.requiredDietaryTagCodes)
         assertEquals(listOf("PEANUT"), request.avoidAllergenCodes)
     }
