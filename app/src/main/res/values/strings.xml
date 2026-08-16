@@ -15,6 +15,8 @@
     <string name="error_password_min_length">Password must be at least 8 characters.</string>
     <string name="error_auth_service_unavailable">Sign-in service is not configured.</string>
     <string name="error_display_name_required">Enter a display name.</string>
+    <string name="privacy_collection_consent">I agree that FoodMind may collect and use my account details, food preferences and history, uploaded content, and location when I allow it, to provide, protect, and improve the service.</string>
+    <string name="error_privacy_consent_required">You must agree before creating an account.</string>
     <string name="error_invalid_credentials">Email or password is incorrect.</string>
     <string name="error_sign_in_failed">Could not sign in. Please try again.</string>
     <string name="foodmind_logo">FoodMind logo</string>

@@ -17,6 +17,7 @@ data class AuthUiState(
     val displayName: String = "",
     val email: String = "",
     val password: String = "",
+    val privacyConsentAccepted: Boolean = false,
     val isLoading: Boolean = false,
     val isAuthenticated: Boolean = false,
     @param:StringRes val errorMessageRes: Int? = null,
@@ -33,9 +34,14 @@ class AuthViewModel : ViewModel() {
 
     fun updateEmail(email: String) = _state.update { it.copy(email = email, errorMessageRes = null) }
     fun updateDisplayName(displayName: String) = _state.update { it.copy(displayName = displayName, errorMessageRes = null) }
-    fun setRegistering(registering: Boolean) = _state.update { it.copy(registering = registering, errorMessageRes = null) }
+    fun setRegistering(registering: Boolean) = _state.update {
+        it.copy(registering = registering, privacyConsentAccepted = false, errorMessageRes = null)
+    }
 
     fun updatePassword(password: String) = _state.update { it.copy(password = password, errorMessageRes = null) }
+    fun updatePrivacyConsent(accepted: Boolean) = _state.update {
+        it.copy(privacyConsentAccepted = accepted, errorMessageRes = null)
+    }
 
     fun login() {
         val current = _state.value
@@ -47,12 +53,16 @@ class AuthViewModel : ViewModel() {
             _state.update { it.copy(errorMessageRes = R.string.error_password_min_length) }
             return
         }
-        val client = apiClient ?: run {
-            _state.update { it.copy(errorMessageRes = R.string.error_auth_service_unavailable) }
-            return
-        }
         if (current.registering && current.displayName.trim().isEmpty()) {
             _state.update { it.copy(errorMessageRes = R.string.error_display_name_required) }
+            return
+        }
+        if (current.registering && !current.privacyConsentAccepted) {
+            _state.update { it.copy(errorMessageRes = R.string.error_privacy_consent_required) }
+            return
+        }
+        val client = apiClient ?: run {
+            _state.update { it.copy(errorMessageRes = R.string.error_auth_service_unavailable) }
             return
         }
         _state.update { it.copy(isLoading = true, errorMessageRes = null) }
