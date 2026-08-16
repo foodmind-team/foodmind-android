@@ -227,6 +227,7 @@ data class FoodRecordResponse(
     val visibility: String = "PRIVATE",
     val groupId: String? = null,
     val mediaAssetId: String? = null,
+    val imageUrl: String? = null,
     val createdAt: String = "",
     val updatedAt: String = "",
     val version: Long = 0,
@@ -276,7 +277,8 @@ data class DrinkRecordResponse(
     val shopNameSnapshot: String = "", val occurredAt: String = "", val price: FoodRecordMoney? = null,
     val rating: Double? = null, val comment: String? = null, val sweetnessLevel: Int? = null,
     val iceLevel: Int? = null, val wouldBuyAgain: Boolean? = null, val visibility: String = "PRIVATE",
-    val groupId: String? = null, val mediaAssetId: String? = null, val createdAt: String = "",
+    val groupId: String? = null, val mediaAssetId: String? = null, val imageUrl: String? = null,
+    val createdAt: String = "",
     val updatedAt: String = "", val version: Long = 0,
 )
 
