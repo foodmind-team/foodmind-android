@@ -121,8 +121,7 @@ At the presentation layer, the first two entry points share a top-level mode
 switch:
 
 - **Eat out & delivery** is the default and shows the primary Generate Recommendation action.
-- **Cooking** replaces recommendation context with manually supplied pantry,
-  time, budget, serving, and dietary context.
+- **Cooking** navigates directly to account-recipe selection and plans against current inventory with serving, time, region, and account dietary context.
 - The Chatbot remains a separate destination and workflow.
 
 Persistent labeled navigation contains Home, Groups, Explore, Saved, and Me.

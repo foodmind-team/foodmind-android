@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.RestaurantMenu
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
@@ -35,6 +36,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,6 +67,7 @@ import com.foodmind.foodmind_android.core.network.FoodMindApiClient
 import com.foodmind.foodmind_android.core.network.FoodMindSession
 import com.foodmind.foodmind_android.core.network.GenerateCookingPlanRequest
 import com.foodmind.foodmind_android.core.network.UserRecipeResponse
+import com.foodmind.foodmind_android.core.network.UserPreferencesResponse
 import com.foodmind.foodmind_android.domain.repository.AsyncSubmitResult
 import com.foodmind.foodmind_android.domain.repository.CookingPlanTaskRepository
 
@@ -91,7 +95,9 @@ class CookingHomeActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         FoodMindSession.initialize(this)
-        if (FoodMindSession.tokenStore.accessToken().isNullOrBlank() && FoodMindSession.tokenStore.refreshToken().isNullOrBlank()) {
+        val bypassAuthForTest = BuildConfig.DEBUG &&
+            intent.getBooleanExtra(MainActivity.EXTRA_BYPASS_AUTH_FOR_TEST, false)
+        if (!bypassAuthForTest && FoodMindSession.tokenStore.accessToken().isNullOrBlank() && FoodMindSession.tokenStore.refreshToken().isNullOrBlank()) {
             authLauncher.launch(Intent(this, LoginActivity::class.java))
         }
         val client = foodMindApiClient()
@@ -105,7 +111,7 @@ class CookingHomeActivity : ComponentActivity() {
                 onShopping = { startActivity(Intent(this, ShoppingListsActivity::class.java)) },
                 onInventory = { startActivity(Intent(this, CookingInventoryActivity::class.java)) },
                 onPlans = { startActivity(Intent(this, CookingPlansActivity::class.java)) },
-                onSettings = { startActivity(Intent(this, CookingSettingsActivity::class.java)) },
+                onManual = { startActivity(Intent(this, ManualCookingActivity::class.java)) },
                 onAuthRequired = { authLauncher.launch(Intent(this, LoginActivity::class.java)) },
             )
         } }
@@ -126,13 +132,16 @@ private fun CookingHomeScreen(
     onShopping: () -> Unit,
     onInventory: () -> Unit,
     onPlans: () -> Unit,
-    onSettings: () -> Unit,
+    onManual: () -> Unit,
     onAuthRequired: () -> Unit,
 ) {
     var recipes by remember { mutableStateOf<List<UserRecipeResponse>>(emptyList()) }
     var loadingRecipes by remember { mutableStateOf(true) }
     var recipeLoadError by remember { mutableStateOf<String?>(null) }
     var recipeReload by remember { mutableStateOf(0) }
+    var accountPreferences by remember { mutableStateOf<UserPreferencesResponse?>(null) }
+    var preferencesError by remember { mutableStateOf<String?>(null) }
+    var preferencesReload by remember { mutableStateOf(0) }
     val context = LocalContext.current
     var selected by remember(preselectedIds) { mutableStateOf(preselectedIds) }
     var query by remember { mutableStateOf("") }
@@ -151,6 +160,17 @@ private fun CookingHomeScreen(
             readPlan = { client.cookingPlan(it) },
             cancelTask = { client.cancelCookingPlanTask(it) },
         )
+    }
+
+    LaunchedEffect(preferencesReload) {
+        preferencesError = null
+        runCatching { client.preferences() }
+            .onSuccess { accountPreferences = it }
+            .onFailure {
+                accountPreferences = null
+                preferencesError = "Your dietary preferences could not be loaded. Retry before generating a plan so your safety rules are applied."
+                if ((it as? retrofit2.HttpException)?.code() == 401) onAuthRequired()
+            }
     }
 
     LaunchedEffect(recipeReload) {
@@ -181,14 +201,18 @@ private fun CookingHomeScreen(
     LaunchedEffect(asyncToken) {
         if (asyncToken == 0) return@LaunchedEffect
         asyncRunning = true; asyncError = null
-        val preferences = CookingPreferencesStore.load(context)
-        taskRepo.generateAsync(GenerateCookingPlanRequest(
+        val cookingPreferences = CookingPreferencesStore.load(context)
+        val safetyPreferences = accountPreferences ?: run {
+            asyncError = "Load your dietary preferences before generating a plan."
+            asyncRunning = false
+            return@LaunchedEffect
+        }
+        taskRepo.generateAsync(buildCookingGenerationRequest(
             recipeIds = chosen.map(UserRecipeResponse::id),
             servings = targetServings,
             maxMinutes = maxMinutes.toIntOrNull(),
-            region = preferences.region,
-            requiredDietaryTagCodes = preferences.requiredDietaryTagCodes.toList(),
-            avoidAllergenCodes = preferences.avoidAllergenCodes.toList(),
+            cookingPreferences = cookingPreferences,
+            accountPreferences = safetyPreferences,
         )).onSuccess { accepted ->
             val planId = accepted.planId
             if (accepted is AsyncSubmitResult.Accepted && planId != null) {
@@ -241,7 +265,23 @@ private fun CookingHomeScreen(
         }
     }
 
-    FoodMindDetailScaffold("Cooking", onBack) { padding ->
+    var kitchenMenuOpen by remember { mutableStateOf(false) }
+    FoodMindDetailScaffold(
+        "Cooking",
+        onBack,
+        actions = {
+            Box {
+                IconButton(onClick = { kitchenMenuOpen = true }) { Icon(Icons.Outlined.MoreVert, "Kitchen") }
+                DropdownMenu(expanded = kitchenMenuOpen, onDismissRequest = { kitchenMenuOpen = false }) {
+                    DropdownMenuItem(text = { Text("Shopping lists") }, onClick = { kitchenMenuOpen = false; onShopping() })
+                    DropdownMenuItem(text = { Text("Inventory") }, onClick = { kitchenMenuOpen = false; onInventory() })
+                    DropdownMenuItem(text = { Text("Plan history") }, onClick = { kitchenMenuOpen = false; onPlans() })
+                    DropdownMenuItem(text = { Text("Add a recipe") }, onClick = { kitchenMenuOpen = false; onAdd() })
+                    DropdownMenuItem(text = { Text("Enter ingredients manually") }, onClick = { kitchenMenuOpen = false; onManual() })
+                }
+            }
+        },
+    ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
@@ -258,13 +298,14 @@ private fun CookingHomeScreen(
                 item(span = { GridItemSpan(maxLineSpan) }) { Column {
                 Text("COOK MODE · RECIPE SELECTION", color = FoodMindGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                 Text("What do you want to cook tonight?", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
-                Text("Choose account recipes. FoodMind checks current inventory before building one safe, ordered plan.", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp))
-                Button(onClick = onAdd, modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
-                    Icon(Icons.Outlined.Add, null, modifier = Modifier.size(17.dp))
-                    Spacer(Modifier.width(7.dp))
-                    Text("Add recipes with Agent")
+                Text("Choose recipes and servings. FoodMind will check what you have before building the plan.", color = FoodMindMuted, modifier = Modifier.padding(top = 6.dp))
+                preferencesError?.let { message ->
+                    FoodMindSurfaceCard(Modifier.padding(top = 12.dp)) { Column {
+                        Text("Dietary preferences unavailable", color = FoodMindCoral, fontWeight = FontWeight.Bold)
+                        Text(message, color = FoodMindMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
+                        OutlinedButton(onClick = { preferencesReload++ }, modifier = Modifier.padding(top = 8.dp)) { Text("Try again") }
+                    } }
                 }
-                CookingPathTabs(onShopping, onInventory, onPlans, onSettings)
                 OutlinedTextField(
                     query,
                     { query = it },
@@ -284,7 +325,7 @@ private fun CookingHomeScreen(
             } else if (visible.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) { Column(Modifier.padding(vertical = 20.dp)) {
                     Text("No recipes available", fontWeight = FontWeight.Bold)
-                    Text("Import a recipe to your account before generating a Cooking Plan.", color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp))
+                    Text("Add a recipe before generating a cooking plan.", color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp))
                     Button(onClick = onAdd, modifier = Modifier.padding(top = 12.dp)) { Text("Add recipe") }
                 } }
             }
@@ -310,8 +351,8 @@ private fun CookingHomeScreen(
                         asyncError?.let { Text(it, color = FoodMindCoral) }
                         Button(onClick = {
                             error = null; asyncToken++
-                        }, enabled = !asyncRunning, modifier = Modifier.fillMaxWidth()) {
-                            Text(if (asyncRunning) "Submitting to Cooking Agent…" else "Generate plan  →")
+                        }, enabled = !asyncRunning && accountPreferences != null, modifier = Modifier.fillMaxWidth()) {
+                            Text(if (asyncRunning) "Building your plan…" else "Generate plan  →")
                         }
                     }
                 }
@@ -320,8 +361,24 @@ private fun CookingHomeScreen(
     }
 }
 
+internal fun buildCookingGenerationRequest(
+    recipeIds: List<String>,
+    servings: Int,
+    maxMinutes: Int?,
+    cookingPreferences: CookingPreferences,
+    accountPreferences: UserPreferencesResponse,
+) = GenerateCookingPlanRequest(
+    recipeIds = recipeIds,
+    servings = servings,
+    maxMinutes = maxMinutes,
+    region = cookingPreferences.region,
+    requiredDietaryTagCodes = accountPreferences.dietaryTagCodes,
+    avoidAllergenCodes = accountPreferences.allergens.map { it.code },
+)
+
 @Composable
 private fun RecipePhotoCard(recipe: UserRecipeResponse, checked: Boolean, onToggle: () -> Unit, onEdit: () -> Unit) {
+    var menuOpen by remember { mutableStateOf(false) }
     Card(
         onClick = onToggle,
         shape = RoundedCornerShape(18.dp),
@@ -355,48 +412,19 @@ private fun RecipePhotoCard(recipe: UserRecipeResponse, checked: Boolean, onTogg
                         contentAlignment = Alignment.Center,
                     ) { Icon(Icons.Outlined.Check, null, tint = Color(0xFF11170F), modifier = Modifier.size(17.dp)) }
                 }
+                Box(Modifier.align(Alignment.TopEnd).padding(4.dp)) {
+                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Outlined.MoreVert, "Actions for ${recipe.name}") }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(text = { Text("Edit recipe") }, onClick = { menuOpen = false; onEdit() })
+                    }
+                }
             }
             Column(Modifier.padding(12.dp)) {
                 Text("${recipe.ingredients.size} INGREDIENTS · ${recipe.steps.size} STEPS", color = FoodMindGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = .5.sp)
                 Text(recipe.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp))
-                Text("Base ${recipe.servings} servings · Backend recipe", color = FoodMindMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+                Text("Base ${recipe.servings} servings", color = FoodMindMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
                 Text(recipe.ingredients.take(3).joinToString(" · "), color = FoodMindFaint, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
-                TextButton(onClick = onEdit, modifier = Modifier.fillMaxWidth()) { Text("Edit") }
             }
-        }
-    }
-}
-
-@Composable
-private fun CookingPathTabs(onShopping: () -> Unit, onInventory: () -> Unit, onPlans: () -> Unit, onSettings: () -> Unit) {
-    Column(
-        Modifier.fillMaxWidth().padding(top = 14.dp)
-            .background(FoodMindSurface, RoundedCornerShape(14.dp)).padding(4.dp),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            Button(onClick = {}, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)) {
-                Text("Choose recipes", fontSize = 11.sp)
-            }
-            OutlinedButton(onClick = onShopping, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)) {
-                Text("Shopping lists", fontSize = 11.sp)
-            }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            OutlinedButton(onClick = onInventory, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)) {
-                Text("Inventory", fontSize = 11.sp)
-            }
-            OutlinedButton(onClick = onPlans, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)) {
-                Text("History", fontSize = 11.sp)
-            }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            OutlinedButton(onClick = onSettings, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)) {
-                Icon(Icons.Outlined.Tune, null, Modifier.size(15.dp))
-                Spacer(Modifier.width(5.dp))
-                Text("Settings", fontSize = 11.sp)
-            }
-            Spacer(Modifier.weight(1f))
         }
     }
 }

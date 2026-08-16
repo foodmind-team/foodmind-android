@@ -17,12 +17,16 @@ import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,10 +51,13 @@ class InventoryActivity : ComponentActivity() {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun InventoryScreen(client: FoodMindApiClient, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var lots by remember { mutableStateOf<List<InventoryLotResponse>>(emptyList()) }
     var editing by remember { mutableStateOf<InventoryLotResponse?>(null) }
+    var showEditor by remember { mutableStateOf(false) }
+    var archiveTarget by remember { mutableStateOf<InventoryLotResponse?>(null) }
     var ingredient by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("") }
     var unit by remember { mutableStateOf("g") }
@@ -58,6 +65,7 @@ private fun InventoryScreen(client: FoodMindApiClient, onBack: () -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableStateOf(0) }
 
     fun clearDraft() {
@@ -66,6 +74,71 @@ private fun InventoryScreen(client: FoodMindApiClient, onBack: () -> Unit) {
         quantity = ""
         unit = "g"
         expiry = ""
+        showEditor = false
+    }
+
+    if (showEditor) {
+        ModalBottomSheet(onDismissRequest = ::clearDraft) {
+            Column(
+                Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(if (editing == null) "Add ingredient" else "Edit ingredient", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+                OutlinedTextField(ingredient, { ingredient = it }, label = { Text("Ingredient") }, modifier = Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(quantity, { quantity = it }, label = { Text("Quantity") }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(unit, { unit = it }, label = { Text("Unit") }, modifier = Modifier.weight(1f))
+                }
+                OutlinedTextField(expiry, { expiry = it }, label = { Text("Expiry date (YYYY-MM-DD, optional)") }, modifier = Modifier.fillMaxWidth())
+                error?.let { Text(it, color = FoodMindCoral) }
+                Button(
+                    onClick = {
+                        val amount = quantity.toDoubleOrNull()
+                        if (ingredient.isBlank() || amount == null || amount <= 0 || unit.isBlank()) {
+                            error = "Ingredient, positive quantity, and unit are required."
+                            return@Button
+                        }
+                        scope.launch {
+                            saving = true
+                            val wasEditing = editing != null
+                            val request = InventoryLotRequest(ingredient.trim(), amount, unit.trim(), expiry.trim().ifBlank { null })
+                            runCatching {
+                                editing?.let { client.updateInventoryLot(it.lotId, it.version, request) }
+                                    ?: client.createInventoryLot(request)
+                            }.onSuccess {
+                                clearDraft()
+                                notice = if (wasEditing) "Ingredient updated." else "Ingredient added."
+                                refresh++
+                            }.onFailure { error = it.message ?: "Could not save ingredient." }
+                            saving = false
+                        }
+                    },
+                    enabled = !saving,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(if (saving) "Saving…" else if (editing == null) "Add ingredient" else "Save changes") }
+            }
+        }
+    }
+
+    archiveTarget?.let { lot ->
+        AlertDialog(
+            onDismissRequest = { archiveTarget = null },
+            title = { Text("Archive ${lot.ingredientName}?") },
+            text = { Text("This removes the lot from active inventory. Cooking plans will no longer count it as available.") },
+            dismissButton = { TextButton(onClick = { archiveTarget = null }) { Text("Cancel") } },
+            confirmButton = { Button(onClick = {
+                archiveTarget = null
+                scope.launch {
+                    runCatching { client.archiveInventoryLot(lot.lotId, lot.version) }
+                        .onSuccess {
+                            if (editing?.lotId == lot.lotId) clearDraft()
+                            notice = "${lot.ingredientName} archived."
+                            refresh++
+                        }
+                        .onFailure { error = it.message ?: "Could not archive ingredient." }
+                }
+            }) { Text("Archive") } },
+        )
     }
 
     LaunchedEffect(refresh) {
@@ -88,48 +161,13 @@ private fun InventoryScreen(client: FoodMindApiClient, onBack: () -> Unit) {
         ) {
             item {
                 Text("What is in your kitchen?", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
-                Text("Lots are server-owned and used by Cooking Plan on Web and Android.", color = FoodMindMuted)
+                Text("See what is available before adding or editing ingredients.", color = FoodMindMuted)
+                Button(onClick = { clearDraft(); showEditor = true }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) { Text("Add ingredient") }
             }
-            item {
-                FoodMindSurfaceCard {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(if (editing == null) "Add inventory lot" else "Edit inventory lot", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        OutlinedTextField(ingredient, { ingredient = it }, label = { Text("Ingredient") }, modifier = Modifier.fillMaxWidth())
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(quantity, { quantity = it }, label = { Text("Quantity") }, modifier = Modifier.weight(1f))
-                            OutlinedTextField(unit, { unit = it }, label = { Text("Unit") }, modifier = Modifier.weight(1f))
-                        }
-                        OutlinedTextField(expiry, { expiry = it }, label = { Text("Expiry date (YYYY-MM-DD, optional)") }, modifier = Modifier.fillMaxWidth())
-                        error?.let { Text(it, color = FoodMindCoral) }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
-                                onClick = {
-                                    val amount = quantity.toDoubleOrNull()
-                                    if (ingredient.isBlank() || amount == null || amount <= 0 || unit.isBlank()) {
-                                        error = "Ingredient, positive quantity, and unit are required."
-                                        return@Button
-                                    }
-                                    scope.launch {
-                                        saving = true
-                                        val request = InventoryLotRequest(ingredient.trim(), amount, unit.trim(), expiry.trim().ifBlank { null })
-                                        runCatching {
-                                            editing?.let { client.updateInventoryLot(it.lotId, it.version, request) }
-                                                ?: client.createInventoryLot(request)
-                                        }.onSuccess { clearDraft(); refresh++ }
-                                            .onFailure { error = it.message ?: "Could not save inventory lot." }
-                                        saving = false
-                                    }
-                                },
-                                enabled = !saving,
-                                modifier = Modifier.weight(1f),
-                            ) { Text(if (saving) "Saving…" else "Save") }
-                            if (editing != null) OutlinedButton(onClick = ::clearDraft, modifier = Modifier.weight(1f)) { Text("Cancel") }
-                        }
-                    }
-                }
-            }
+            notice?.let { message -> item { Text(message, color = FoodMindGreen) } }
+            error?.takeIf { !showEditor }?.let { message -> item { Text(message, color = FoodMindCoral) } }
             if (loading) item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator() } }
-            if (!loading && lots.isEmpty()) item { FoodMindSurfaceCard { Text("Inventory is empty. Add the first lot above.") } }
+            if (!loading && lots.isEmpty()) item { FoodMindSurfaceCard { Text("Inventory is empty. Add your first ingredient.") } }
             items(lots, key = InventoryLotResponse::lotId) { lot ->
                 FoodMindSurfaceCard {
                     Row(Modifier.fillMaxWidth()) {
@@ -147,17 +185,12 @@ private fun InventoryScreen(client: FoodMindApiClient, onBack: () -> Unit) {
                                         quantity = detail.quantity.toString()
                                         unit = detail.unit
                                         expiry = detail.expiryDate.orEmpty()
+                                        showEditor = true
                                     }
                                     .onFailure { error = it.message ?: "Could not load lot detail." }
                             }
                         }) { Icon(Icons.Outlined.Edit, "Edit ${lot.ingredientName}") }
-                        IconButton(onClick = {
-                            scope.launch {
-                                runCatching { client.archiveInventoryLot(lot.lotId, lot.version) }
-                                    .onSuccess { if (editing?.lotId == lot.lotId) clearDraft(); refresh++ }
-                                    .onFailure { error = it.message ?: "Could not archive inventory lot." }
-                            }
-                        }) { Icon(Icons.Outlined.Archive, "Archive ${lot.ingredientName}") }
+                        IconButton(onClick = { archiveTarget = lot }) { Icon(Icons.Outlined.Archive, "Archive ${lot.ingredientName}") }
                     }
                 }
             }

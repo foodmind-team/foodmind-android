@@ -80,6 +80,7 @@ class ProfileActivity : ComponentActivity() {
                     onNavigate = ::openFoodMindRoot,
                     onEdit = { startActivity(Intent(this, ProfileEditorActivity::class.java)) },
                     onPreferences = { startActivity(Intent(this, PreferencesActivity::class.java)) },
+                    onCookingPreferences = { startActivity(Intent(this, CookingSettingsActivity::class.java)) },
                     onHistory = { startActivity(Intent(this, HistoryActivity::class.java)) },
                     onDashboard = { startActivity(Intent(this, DashboardActivity::class.java)) },
                     onChat = { startActivity(Intent(this, ChatListActivity::class.java)) },
@@ -105,6 +106,7 @@ private fun ProfileScreen(
     onNavigate: (FoodMindRoot) -> Unit,
     onEdit: () -> Unit,
     onPreferences: () -> Unit,
+    onCookingPreferences: () -> Unit,
     onHistory: () -> Unit,
     onDashboard: () -> Unit,
     onChat: () -> Unit,
@@ -169,13 +171,14 @@ private fun ProfileScreen(
                     item {
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                ProfileAction("Preferences", "Food preferences, budget, and distance", Icons.Outlined.Settings, Modifier.weight(1f), onPreferences)
-                                ProfileAction("Insights", "Dashboard & weekly recap", Icons.Outlined.BarChart, Modifier.weight(1f), onDashboard)
+                                ProfileAction("Preferences", "Dietary rules, allergens, budget, and distance", Icons.Outlined.Settings, Modifier.weight(1f), onPreferences)
+                                ProfileAction("Cooking preferences", "Region for cooking guidance", Icons.Outlined.Restaurant, Modifier.weight(1f), onCookingPreferences)
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                ProfileAction("Insights", "Dashboard & weekly recap", Icons.Outlined.BarChart, Modifier.weight(1f), onDashboard)
                                 ProfileAction("History", "Meals and drinks", Icons.Outlined.History, Modifier.weight(1f), onHistory)
-                                ProfileAction("Assistant", "Continue your FoodMind conversation", Icons.Outlined.ChatBubbleOutline, Modifier.weight(1f), onChat)
                             }
+                            ProfileAction("Assistant", "Continue your FoodMind conversation", Icons.Outlined.ChatBubbleOutline, Modifier.fillMaxWidth(), onChat)
                             ProfileAction("Record management", "Create, view, edit, or delete meal and drink records", Icons.Outlined.Restaurant, Modifier.fillMaxWidth(), onRecords)
                         }
                     }

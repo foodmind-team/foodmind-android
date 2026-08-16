@@ -96,7 +96,7 @@
 - tablet/expanded；
 - portrait/landscape、gesture/3-button nav；
 - fontScale 1.0/1.3/2.0；
-- light theme（MVP），dark theme 若启用；
+- dark theme（当前产品基线），同时检查系统高对比度与颜色反转；
 - TalkBack、Switch Access/键盘可达性检查。
 
 每个重要 screen 保存 populated、loading、empty、error、fallback、长文案截图，并说明与批准原型的差异。

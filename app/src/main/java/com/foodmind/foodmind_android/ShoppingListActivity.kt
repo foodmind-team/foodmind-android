@@ -239,7 +239,14 @@ private fun ShoppingItemEditor(
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = item.checked, onCheckedChange = { save(it) }, enabled = editable && !saving)
-                Text(item.ingredientName, modifier = Modifier.weight(1f), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Column(Modifier.weight(1f)) {
+                    Text(item.ingredientName, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "${item.requiredQuantity} ${item.unit} needed · ${item.purchasedQuantity ?: item.requiredQuantity} ${item.unit} planned",
+                        color = FoodMindMuted,
+                        fontSize = 12.sp,
+                    )
+                }
             }
             error?.let { Text(it, color = FoodMindCoral, fontSize = 12.sp) }
         }
