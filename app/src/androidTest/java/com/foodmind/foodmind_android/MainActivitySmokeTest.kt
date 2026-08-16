@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import org.junit.Rule
@@ -31,12 +32,20 @@ class MainActivitySmokeTest {
     fun close() { scenario.close() }
 
     @Test
-    fun homeRendersAndCookingModeKeepsRecipeManagementInMyRecipes() {
+    fun cookingModeOpensRecipeSelectionAndKitchenMenuDirectly() {
         composeRule.onNodeWithText("FoodMind").assertIsDisplayed()
         composeRule.onNodeWithText("Cooking").performClick()
-        composeRule.onNodeWithText("Choose a cooking starting point").assertIsDisplayed()
-        composeRule.onNodeWithText("Start cooking").assertIsDisplayed()
-        composeRule.onAllNodesWithText("Add recipe").assertCountEquals(0)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("What do you want to cook tonight?")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("What do you want to cook tonight?").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Choose a cooking starting point").assertCountEquals(0)
+
+        composeRule.onNodeWithContentDescription("Kitchen").performClick()
+        composeRule.onNodeWithText("Shopping lists").assertIsDisplayed()
+        composeRule.onNodeWithText("Inventory").assertIsDisplayed()
+        composeRule.onNodeWithText("Plan history").assertIsDisplayed()
     }
 
     @Test

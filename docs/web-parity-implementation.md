@@ -11,12 +11,12 @@ Android parity authority:
 | Web capability | Android destination | Backend/data boundary |
 | --- | --- | --- |
 | Login and register | `LoginActivity` | `/auth/login`, `/auth/register`, `/auth/refresh` |
-| Recommendation form and result | `MainActivity`, `RecommendationDetailActivity` | `/recommendations/*`, groups, preferences, catalogue |
+| Recommendation context and result | `MainActivity`, `RecommendationContextActivity`, `RecommendationDetailActivity` | `/recommendations/*`, groups, preferences, catalogue |
 | Food/drink history and CRUD | `HistoryActivity`, `RecordCollectionActivity`, `RecordEditorActivity`, `RecordDetailActivity` | `/history`, `/food-records/*`, `/drink-records/*`, `/media/*` |
 | Groups, invitations, members, feed, archive | `GroupsActivity`, `GroupWorkspaceActivity` | `/groups/*`, `/group-invitations/join` |
 | Explore, search, content details | `ExploreActivity`, `CatalogueDetailActivity` | `/explore`, `/search`, `/catalogue/*` |
 | Want to Try and recipes | `SavedActivity`, `RecipeLibraryActivity`, `CookingRecipeEditorActivity` | `/want-to-try/*`, `/recipes/*`, `/recipe-imports/*` |
-| Cooking selection and preferences | `CookingHomeActivity`, `CookingSettingsActivity` | `/recipes`, `/cooking-plans/generate-async`, on-device cooking preferences |
+| Cooking selection and preferences | `CookingHomeActivity`, `CookingSettingsActivity` | `/recipes`, `/cooking-plans/generate-async`, account dietary preferences plus on-device region |
 | Cooking history and live task progress | `CookingPlansActivity`, `CookingPlanDetailActivity` | `/cooking-plans/history`, `/cooking-plans/{id}`, `/task`, `/cancel` |
 | Shopping and real inventory | `ShoppingListsActivity`, `ShoppingListActivity`, `CookingInventoryActivity` | `/shopping-lists/*`, `/inventory/lots/*` |
 | Manual cooking | `ManualCookingActivity`, `CookingPlanDetailActivity` | `/cooking-plans/*`, catalogue preference codes |
@@ -35,7 +35,7 @@ The current backend OpenAPI exposes owner-scoped `/recipes` endpoints and
 4. sends the selected recipe IDs to `POST /cooking-plans/generate-async` and opens the processing detail immediately;
 5. polls task progress in the detail page, supports cancellation, and then renders the terminal plan;
 6. lets the backend reload the recipes and current inventory before planning;
-7. persists region, dietary, allergen, and local execution-board progress on-device.
+7. persists only the cooking region and local execution-board progress on-device; dietary and allergen constraints always come from account Preferences.
 
 Legacy device-local drafts remain available to the older recipe-library flow, but are no
 longer the authority for the Web-aligned Cooking selection page.
@@ -59,6 +59,6 @@ Local delivery gate:
 MockWebServer covers bearer headers, refresh rotation/retry, correlation IDs,
 idempotency headers, public endpoint paths, and optimistic-concurrency headers.
 The local gate passes with the Android unit-test suite. A Pixel emulator regression also
-covered the five Cooking tabs, live backend recipe/inventory/shopping-list reads, backend
+covered the single Kitchen menu, live backend recipe/inventory/shopping-list reads, backend
 recipe editing, immediate PROCESSING navigation, automatic READY transition, and execution
 progress restoration after force-stopping and reopening the app.

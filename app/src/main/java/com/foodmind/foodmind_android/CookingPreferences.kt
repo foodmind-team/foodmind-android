@@ -4,8 +4,6 @@ import android.content.Context
 
 data class CookingPreferences(
     val region: String = "SG",
-    val requiredDietaryTagCodes: Set<String> = emptySet(),
-    val avoidAllergenCodes: Set<String> = emptySet(),
 )
 
 object CookingPreferencesStore {
@@ -15,16 +13,14 @@ object CookingPreferencesStore {
         val preferences = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
         return CookingPreferences(
             region = preferences.getString("region", "SG") ?: "SG",
-            requiredDietaryTagCodes = preferences.getStringSet("dietary", emptySet()).orEmpty().toSet(),
-            avoidAllergenCodes = preferences.getStringSet("allergens", emptySet()).orEmpty().toSet(),
         )
     }
 
     fun save(context: Context, value: CookingPreferences) {
         context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
             .putString("region", value.region)
-            .putStringSet("dietary", value.requiredDietaryTagCodes)
-            .putStringSet("allergens", value.avoidAllergenCodes)
+            .remove("dietary")
+            .remove("allergens")
             .apply()
     }
 }

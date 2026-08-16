@@ -6,7 +6,7 @@
 
 | 根目的地 | Nav key | 主要工作 |
 | --- | --- | --- |
-| 首页 | `Home(mode)` | 默认推荐；切换外食/烹饪。 |
+| 首页 | `Home` | 默认推荐；Cooking 模式直接进入 `CookingSelect`。 |
 | 群组 | `Groups` | 群组、成员、feed、分享。 |
 | 发现 | `Explore` | 授权图片内容。 |
 | 收藏 | `Saved(section)` | Want to Try、我的菜谱。 |
@@ -37,6 +37,7 @@ AuthGraph
 MainGraph (5 top-level back stacks)
 ├─ Home
 │  ├─ RecommendationForm
+│  ├─ RecommendationContext
 │  ├─ RecommendationResult(sessionId)
 │  ├─ CookingSelect
 │  └─ CookingPlan(planId)
@@ -63,6 +64,7 @@ Nav key 只包含标量 ID、enum 和必要日期；大型对象从 repository �
 ## 4. 首页：推荐模式
 
 - 默认 selected mode 为“外食与外卖”；切换保存在可恢复 UI state，不改服务端偏好。
+- 首页只显示上下文摘要；长表单使用独立 `RecommendationContext` destination，变更只对下一次推荐生效。
 - 表单发送当前上下文；历史、偏好、群组 evidence 由后端授权解析。
 - generate 使用稳定 `Idempotency-Key`，pending 时禁用重复触发。
 - 初始只展示 ordered candidates 的第一项；“换一个”只改变本地 index。
@@ -75,19 +77,21 @@ Nav key 只包含标量 ID、enum 和必要日期；大型对象从 repository �
 
 吸收 Pixel 10 原型的已验证交互：
 
-- 18dp 页面水平边距、搜索框、横向分类 chip、双列菜谱卡；
+- 18dp 页面水平边距、搜索框和自适应双列菜谱卡；
 - 选择标记、1..N 选择、底部 selection dock；
+- 未选择菜谱时隐藏 dock；选择后通过 `Plan options` Bottom Sheet 编辑份数和时间上限；
+- 顶栏 `Kitchen` 菜单提供 Shopping lists、Inventory、Plan history 和低频添加入口；
 - dock 位于系统/根 NavigationBar 上方，内容具有相应 bottom inset；
 - 卡片显示图片、菜名、时长、份数/工具摘要；
-- 生成前允许设置目标份数、时间上限、用餐时间和可用厨房资源（以最终契约为准）。
+- 生成前允许设置目标份数和时间上限；账号 Preferences 提供饮食要求与过敏原，加载失败时禁止生成。
 
-“添加菜谱”不出现在本屏，只能从 `Saved(Recipes)` 进入。
+“添加菜谱”只在空状态和 `Kitchen` 菜单出现，常规入口仍为 `Saved(Recipes)`。
 
 ## 6. RecipeList / RecipeEditor
 
 RecipeList：搜索/分类、添加 FAB/顶部 action、编辑/删除菜单、空状态。RecipeEditor 使用 modal bottom sheet 或完整 destination，取决于字段长度；长食材/步骤表单优先完整 destination。
 
-当前后端没有 `/api/v1/recipes`。Android 与 Web 一致，将菜谱草稿按账号保存在设备上；生成计划时缩放食材行并调用受支持的 `/cooking-plans/generate`，不把本地草稿称为后端持久化。
+当前后端提供 owner-scoped `/api/v1/recipes`。Android 与 Web 都读取账号菜谱，并在异步生成请求中发送精确 `recipeIds`；后端重新加载菜谱和实时库存。
 
 图片选择使用系统 Photo Picker，不申请不必要的广泛存储权限；上传走 media 两阶段生命周期。
 
@@ -113,7 +117,7 @@ timeline：
 
 - 群组：服务端决定 owner/member 权限；离组/移除后清相关 repository cache 并返回安全页面。
 - 发现：Lazy grid/list + 分页，只显示 `/explore` 授权内容；不能扩展为公开关注 feed。
-- 收藏：Want to Try 使用公开契约；recipes 为按账号隔离的设备本地草稿，并明确标注不在后端持久化。
+- 收藏：Want to Try 和 Recipes 均使用账号隔离的后端契约；旧设备本地草稿不再是 Cooking 的权威来源。
 - 我的：资料、偏好、Dashboard、周报；指标不在设备端重算。
 
 ## 9. Chatbot
