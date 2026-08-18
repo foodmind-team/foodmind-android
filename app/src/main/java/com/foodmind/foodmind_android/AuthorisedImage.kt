@@ -21,6 +21,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import coil.compose.AsyncImage
+import java.net.URI
 
 internal enum class AuthorisedImageState {
     EMPTY,
@@ -33,6 +34,12 @@ internal fun initialAuthorisedImageState(model: Any?): AuthorisedImageState =
     if (model == null || model is String && model.isBlank()) AuthorisedImageState.EMPTY
     else AuthorisedImageState.LOADING
 
+/** Resolves a Backend-relative catalogue path with the same public API origin used by Retrofit. */
+internal fun resolvedAuthorisedImageModel(model: Any?, apiBaseUrl: String = BuildConfig.FOODMIND_API_BASE_URL): Any? {
+    if (model !is String || !model.startsWith('/')) return model
+    return runCatching { URI.create(apiBaseUrl).resolve(model).toString() }.getOrDefault(model)
+}
+
 @Composable
 internal fun AuthorisedImage(
     model: Any?,
@@ -40,7 +47,8 @@ internal fun AuthorisedImage(
     modifier: Modifier = Modifier,
     emptyLabel: String = "No image",
 ) {
-    var state by remember(model) { mutableStateOf(initialAuthorisedImageState(model)) }
+    val resolvedModel = resolvedAuthorisedImageModel(model)
+    var state by remember(resolvedModel) { mutableStateOf(initialAuthorisedImageState(resolvedModel)) }
     Box(
         modifier = modifier
             .background(FoodMindSurfaceRaised)
@@ -49,7 +57,7 @@ internal fun AuthorisedImage(
     ) {
         if (state != AuthorisedImageState.EMPTY) {
             AsyncImage(
-                model = model,
+                model = resolvedModel,
                 contentDescription = contentDescription,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
