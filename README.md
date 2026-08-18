@@ -1,220 +1,94 @@
 # FoodMind Android
 
-FoodMind Android is the native mobile client for FoodMind. It must expose the same business capabilities, validation semantics, permission outcomes, and backend metrics as the Web client while using mobile-appropriate navigation and interaction patterns.
+FoodMind Android is the native mobile client for FoodMind. It provides the same public capabilities and Backend-owned validation semantics as the Web client through Kotlin, Jetpack Compose, Retrofit, and OkHttp.
 
-> **Current status:** the application is a Compose/Retrofit client integrated with the complete public backend contract. Contract generation, 83-operation coverage, debug APK assembly, unit tests, lint, and emulator acceptance are release gates.
+## Features
 
-## Responsibilities
+- Sign-in, profile, preferences, records, history, trusted groups, and Explore
+- Recommendation decisions and feedback, cooking plans, shopping lists, recipes, and chat
+- Backend-owned dashboards and weekly recaps
+- Secure client session handling, lifecycle-aware state, and offline/error recovery
 
-The Android application is responsible for:
+The app talks only to the public Backend `/api/v1` contract. It never connects directly to PostgreSQL, Agent services, or inference services.
 
-- Registration and login UI
-- Secure client-side session handling
-- Profile and preference screens
-- Food and drink record workflows
-- History and filters
-- Trusted groups and group feed
-- Want to Try
-- A recommendation-first home with an **Eat out & delivery / Cooking** mode switch
-- One lead recommendation at a time, with access to alternate candidates
-- Acceptance, rejection, re-recommendation, and later rating
-- Inventory, shopping-list, cloud-recipe, recipe-import, and cooking-plan workflows
-- Permission-safe Explore presentation for group-visible and curated posts
-- FoodMind Chatbot sessions and grounded references
-- Dashboard charts and weekly recap
-- Mobile accessibility, lifecycle handling, and offline-aware UX
+## Prerequisites
 
-The Android application is not responsible for:
+- Android Studio with the SDK requested by the project
+- JDK 17
+- An Android emulator or physical device
+- A FoodMind Backend reachable from that device
 
-- Authoritative domain or permission rules
-- Recommendation filtering, UserCF, ItemCF, or Logistic Regression
-- Agent routing
-- Analytics calculations
-- Direct database, Agent, or inference-service access
+Do not commit `local.properties`, SDK paths, keystores, or device-specific settings.
 
-## Technology Direction
+## Quick start
 
-Implemented technology direction:
+```bash
+git clone https://github.com/foodmind-team/foodmind-android.git
+cd foodmind-android
+./gradlew --no-daemon apiCheck testDebugUnitTest assembleDebug
+```
 
-- Kotlin
-- Jetpack Compose
-- Activity-scoped Compose navigation
-- Coroutines
-- Retrofit and OkHttp
-- Android platform chart rendering for backend-owned metrics
-
-## System Boundary
+Start the Backend first. A debug build defaults to the Android emulator route:
 
 ```text
-Android application
-  → HTTPS Spring Boot /api/v1
-  → backend-owned security, domain, persistence, Agent, and ML flows
+http://10.0.2.2:8080/api/v1/
 ```
 
-The Android build must contain only the public backend base URL. It must not contain database credentials, AWS secrets, model-registry credentials, or private service tokens.
+To use another host, pass an API URL with the required trailing slash:
 
-## Repository Structure
+```bash
+./gradlew --no-daemon assembleDebug \
+  -Pfoodmind.debugApiBaseUrl=http://10.0.2.2:8080/api/v1/
+```
+
+Then select the `app` configuration in Android Studio and run it on an emulator. For a physical device, use a reachable HTTPS staging URL instead of `10.0.2.2`.
+
+## Build variants and API URLs
+
+| Build | API URL source | Default |
+| --- | --- | --- |
+| Debug | `foodmind.debugApiBaseUrl` or `FOODMIND_API_BASE_URL` | Emulator route above |
+| Release | `foodmind.apiBaseUrl` or `FOODMIND_API_BASE_URL` | HTTPS staging fallback |
+
+Release builds reject missing, insecure, placeholder, or malformed URLs. The API base URL must end in `/api/v1/`.
+
+## Contract workflow
+
+The checked-in [`contracts/backend-openapi-v1.yaml`](contracts/backend-openapi-v1.yaml) mirrors the Backend contract. With the sibling Backend checkout available, regenerate after an approved public API change:
+
+```bash
+./gradlew --no-daemon apiGenerate
+./gradlew --no-daemon apiCheck
+```
+
+The generated reference client is not the application implementation; Retrofit declarations and contract metadata are checked for drift.
+
+## Verify
+
+```bash
+./gradlew --no-daemon apiCheck clean testDebugUnitTest assembleDebug lintDebug compileDebugAndroidTestKotlin
+./gradlew --no-daemon connectedDebugAndroidTest   # requires a device or emulator
+```
+
+## Repository layout
 
 ```text
-foodmind-android/
-├── .github/workflows/                    # CI workflows
-├── docs/
-│   ├── architecture/
-│   └── operations/
-└── app/src/
-    ├── main/java/com/foodmind/foodmind_android/
-    │   ├── app/                          # Application composition
-    │   ├── core/
-    │   │   ├── designsystem/
-    │   │   ├── model/
-    │   │   ├── navigation/
-    │   │   ├── network/
-    │   │   └── security/
-    │   ├── data/
-    │   │   ├── local/
-    │   │   ├── remote/
-    │   │   └── repository/
-    │   ├── domain/
-    │   │   ├── model/
-    │   │   ├── repository/
-    │   │   └── usecase/
-    │   └── feature/
-    │       ├── auth/
-    │       ├── profile/
-    │       ├── records/
-    │       ├── groups/
-    │       ├── recommendation/
-    │       ├── cooking/
-    │       ├── chat/
-    │       └── analytics/
-    ├── test/java/com/foodmind/foodmind_android/
-    │   ├── core/
-    │   ├── data/
-    │   ├── domain/
-    │   ├── feature/
-    │   └── fixtures/
-    └── androidTest/java/com/foodmind/foodmind_android/
-        ├── e2e/
-        └── fixtures/
+app/src/main/        Compose UI, data, domain, networking, and application code
+app/src/test/        Unit tests and API fixtures
+app/src/androidTest/ Instrumented and end-to-end tests
+contracts/           Versioned Backend OpenAPI snapshot and lock metadata
+docs/                Architecture, development, UX, and operations guides
+scripts/             Local validation helpers
 ```
 
-## Layer Responsibilities
+## Contributing
 
-| Layer | Responsibility |
-| --- | --- |
-| `app` | Root composition, global providers, and application startup |
-| `core` | Stable shared Android infrastructure and UI primitives |
-| `data` | Remote/local data sources and repository implementations |
-| `domain` | Client-side models, repository interfaces, and use-case coordination |
-| `feature` | Screens, ViewModels, UI state, actions, and feature navigation |
+Keep domain meaning, permissions, and validation aligned with the Backend and Web client. Add unit or UI coverage for a behaviour change, verify the happy and failure paths on a device when applicable, and run the relevant commands above before opening a pull request.
 
-Client-side use cases coordinate presentation behaviour; they must not reproduce backend business rules.
+## Security
 
-## State Model
+Only the public Backend base URL belongs in a build. Do not include cloud credentials, signing keys, database details, private service URLs, request bodies, or bearer tokens in source code or debug logs.
 
-Each feature should use an explicit state and event model:
+## License
 
-```text
-User action
-  → ViewModel
-  → repository/use case
-  → backend
-  → result mapping
-  → StateFlow
-  → Compose UI
-```
-
-UI state should represent:
-
-- Initial
-- Loading
-- Content
-- Empty
-- Validation error
-- Authentication failure
-- Forbidden/unavailable
-- Network failure
-- Recommendation fallback
-
-The app shell also owns explicit mode and destination state:
-
-- Home mode: `EAT_OUT_DELIVERY` or `COOKING`
-- Destination: Home, Groups, Explore, Saved, or Me
-- Recommendation candidate position within the ordered result set
-
-Avoid exposing Retrofit response types directly to Composables.
-
-## API Contract
-
-- Public API owner: `foodmind-backend`
-- Base path: `/api/v1`
-- Authentication: bearer JWT
-- Schema source: committed OpenAPI specification
-- Internal service endpoints: prohibited
-- Timestamps: ISO 8601
-- IDs: opaque
-
-Android and Web should share UAT scenarios, not source code.
-
-Run `./gradlew apiGenerate` after an intentional backend contract change. CI runs `apiCheck` and `apiCoverage`; both fail when the snapshot, generated DTO field manifest, or Retrofit operation surface drifts.
-
-## Build Configuration
-
-The public backend URL should be injected through build configuration for each environment:
-
-- `local`
-- `staging`
-- `production-demo`
-
-No secrets may be embedded in `BuildConfig`, resources, the manifest, or committed Gradle properties.
-
-## Build Baseline
-
-Before feature implementation, confirm that the committed compile SDK, Android Gradle Plugin, Gradle version, AndroidX dependencies, and team Android Studio version are compatible. The baseline unit-test and debug-assembly commands must pass on a clean checkout.
-
-## Local Development
-
-Common Windows commands:
-
-```powershell
-.\gradlew.bat testDebugUnitTest --no-daemon
-.\gradlew.bat assembleDebug --no-daemon
-```
-
-Use Android Studio for emulator and instrumented-test workflows. See [local development](docs/operations/local-development.md).
-
-## Security Rules
-
-- Add only the network permission required for the public API.
-- Use HTTPS outside local development.
-- Do not log JWTs, request headers, dietary data, or Chatbot content.
-- Treat local route guards as UX only; backend permission checks remain authoritative.
-- Use secure platform storage for session credentials when implemented.
-- Clear protected cached data on logout.
-- Do not allow screenshots or backups to expose sensitive information without an explicit decision.
-
-## Testing Strategy
-
-- Unit tests for ViewModels, reducers, mappers, and use cases
-- Repository tests with MockWebServer
-- Compose UI tests for loading, content, error, and accessibility states
-- Navigation tests for protected routes
-- Instrumented tests for critical end-to-end paths
-- Shared UAT scenarios for UC-01 through UC-09
-- UI tests for the default recommendation mode, Cooking switch, lead-result generation, Groups navigation, and permission-safe Explore content
-- Contract fixtures matching the backend OpenAPI version
-
-## Contribution Workflow
-
-1. Link the feature to an Issue and acceptance criteria.
-2. Confirm the backend contract version.
-3. Work inside the owning feature and supporting layer.
-4. Add unit/UI tests.
-5. Run unit tests and assemble the debug APK.
-6. Ensure no local SDK path, credentials, or device files are staged.
-7. Open a reviewed Pull Request.
-
-## Further Reading
-
-- [Android architecture](docs/architecture/android-architecture.md)
-- [Local development](docs/operations/local-development.md)
+No open-source license is currently included in this repository. Obtain permission from the maintainers before redistributing or reusing the code.

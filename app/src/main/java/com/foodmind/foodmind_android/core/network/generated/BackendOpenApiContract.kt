@@ -2,7 +2,7 @@
 package com.foodmind.foodmind_android.core.network.generated
 
 internal object BackendOpenApiContract {
-    const val SHA256 = "2b96426a28fa49d5989e39b24119b4b9b80682a1a31b12043c5713273f034f69"
+    const val SHA256 = "d52b624725a2ee2fafe1d57bbc5f4bd473a4faec5636c4a841025c2ca9ba91a8"
     val operations = setOf(
         "DELETE /chat/sessions/{sessionId}",
         "DELETE /drink-records/{id}",
@@ -12,6 +12,7 @@ internal object BackendOpenApiContract {
         "DELETE /media/{mediaAssetId}",
         "DELETE /recipes/{id}",
         "DELETE /want-to-try/{id}",
+        "GET /catalogue-images/{sourceId}",
         "GET /catalogue/meals/{id}",
         "GET /catalogue/places/{id}",
         "GET /catalogue/places/{id}/walking-route",

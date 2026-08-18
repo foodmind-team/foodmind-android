@@ -44,6 +44,9 @@ interface FoodMindApi {
     @GET("catalogue/reference-data")
     suspend fun referenceData(): CatalogueReferenceDataResponse
 
+    @GET("catalogue-images/{sourceId}")
+    suspend fun catalogueImage(@Path("sourceId") sourceId: String): okhttp3.ResponseBody
+
     @GET("catalogue/meals/{id}")
     suspend fun meal(@Path("id") id: String): CatalogueMealResponse
 

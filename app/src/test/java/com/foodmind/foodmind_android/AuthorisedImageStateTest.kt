@@ -19,4 +19,21 @@ class AuthorisedImageStateTest {
         )
         assertEquals(AuthorisedImageState.LOADING, initialAuthorisedImageState(Any()))
     }
+
+    @Test
+    fun backendRelativeImageUsesTheConfiguredApiOrigin() {
+        assertEquals(
+            "https://foodmind.example/api/v1/catalogue-images/asset-id",
+            resolvedAuthorisedImageModel(
+                "/api/v1/catalogue-images/asset-id",
+                "https://foodmind.example/api/v1/",
+            ),
+        )
+    }
+
+    @Test
+    fun signedImageUrlIsNotRewritten() {
+        val signedUrl = "https://bucket.s3.ap-southeast-1.amazonaws.com/record.jpg?X-Amz-Signature=test"
+        assertEquals(signedUrl, resolvedAuthorisedImageModel(signedUrl, "https://foodmind.example/api/v1/"))
+    }
 }
