@@ -92,6 +92,7 @@ private fun RecordCollectionScreen(client: FoodMindApiClient, onBack: () -> Unit
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh++ }
     LaunchedEffect(refresh) {
         loading = true
         runCatching { coroutineScope { val foodCall = async { client.foodRecords().items }; val drinkCall = async { client.drinkRecords().items }; foodCall.await() to drinkCall.await() } }

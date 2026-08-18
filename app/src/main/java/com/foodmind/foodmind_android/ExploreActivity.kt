@@ -46,6 +46,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.foodmind.foodmind_android.core.network.ExploreItemResponse
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
 import kotlinx.coroutines.launch
@@ -87,6 +89,8 @@ private fun ExploreScreen(
     var savedIds by remember { mutableStateOf(setOf<String>()) }
     var refresh by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh++ }
 
     LaunchedEffect(activeQuery, type, refresh) {
         loading = true
