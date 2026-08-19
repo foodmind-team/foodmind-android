@@ -33,4 +33,13 @@ class RecommendationRepositoryTest {
         assertEquals("FoodMind 厨房 · 武吉士", result.getOrThrow().meta)
         assertEquals("离你近，且符合预算。", result.getOrThrow().reason)
     }
+
+    @Test
+    fun failsWhenTheBackendDoesNotReturnARecommendationSession() = runTest {
+        val repository = RecommendationRepositoryImpl { RecommendationResponse(status = "SUCCEEDED") }
+
+        val result = repository.generate(GenerateRecommendationRequest())
+
+        assertTrue(result.isFailure)
+    }
 }
