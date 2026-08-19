@@ -13,9 +13,11 @@ class RecommendationRepositoryImpl(
 ) : RecommendationRepository {
     override suspend fun generate(request: GenerateRecommendationRequest): Result<Recommendation> = runCatching {
         val response = apiClient(request)
+        val sessionId = response.sessionId?.takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("Recommendation response did not include a session ID.")
         val candidate = (response.items.ifEmpty { response.candidates }).firstOrNull()
         Recommendation(
-            sessionId = response.sessionId,
+            sessionId = sessionId,
             status = response.status,
             title = candidate?.mealName ?: "No matching recommendations yet",
             meta = listOfNotNull(candidate?.placeName, candidate?.area).joinToString(" · ").ifBlank { "Please try again later" },

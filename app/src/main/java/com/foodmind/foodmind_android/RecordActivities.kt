@@ -58,6 +58,8 @@ import com.foodmind.foodmind_android.core.network.CreateFoodRecordRequest
 import com.foodmind.foodmind_android.core.network.DrinkRecordResponse
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
 import com.foodmind.foodmind_android.core.network.FoodRecordResponse
+import com.foodmind.foodmind_android.core.network.RecommendationCandidateResponse
+import com.foodmind.foodmind_android.core.network.RecommendationFeedbackRequest
 import com.foodmind.foodmind_android.core.network.UpdateDrinkRecordRequest
 import com.foodmind.foodmind_android.core.network.UpdateFoodRecordRequest
 import com.foodmind.foodmind_android.domain.repository.MediaUploadRepository
@@ -172,17 +174,65 @@ private fun FoodRecordResponse.toFormSeed() = RecordFormSeed(
     imageUrl = imageUrl,
 )
 
+internal data class FoodRecordPrefill(
+    val recommendationSessionId: String?,
+    val recommendationCandidateId: String?,
+    val mealId: String?,
+    val mealName: String,
+    val placeId: String?,
+    val placeName: String,
+    val price: String,
+    val currency: String,
+)
+
+internal fun foodRecordPrefillFrom(candidate: RecommendationCandidateResponse, sessionId: String? = null) = FoodRecordPrefill(
+    recommendationSessionId = sessionId,
+    recommendationCandidateId = candidate.candidateId,
+    mealId = candidate.mealId,
+    mealName = candidate.mealName.orEmpty(),
+    placeId = candidate.placeId,
+    placeName = candidate.placeName.orEmpty(),
+    price = candidate.price?.amount?.toString().orEmpty(),
+    currency = candidate.price?.currency?.takeIf { it.isNotBlank() } ?: "SGD",
+)
+
 class RecordEditorActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val type = intent.getStringExtra(EXTRA_TYPE) ?: "FOOD"
         val id = intent.getStringExtra(EXTRA_ID)
+        val prefill = intent.takeIf { it.hasExtra(EXTRA_PREFILL_MEAL_NAME) }?.let {
+            FoodRecordPrefill(
+                mealId = it.getStringExtra(EXTRA_PREFILL_MEAL_ID),
+                recommendationSessionId = it.getStringExtra(EXTRA_PREFILL_SESSION_ID),
+                recommendationCandidateId = it.getStringExtra(EXTRA_PREFILL_CANDIDATE_ID),
+                mealName = it.getStringExtra(EXTRA_PREFILL_MEAL_NAME).orEmpty(),
+                placeId = it.getStringExtra(EXTRA_PREFILL_PLACE_ID),
+                placeName = it.getStringExtra(EXTRA_PREFILL_PLACE_NAME).orEmpty(),
+                price = it.getStringExtra(EXTRA_PREFILL_PRICE).orEmpty(),
+                currency = it.getStringExtra(EXTRA_PREFILL_CURRENCY) ?: "SGD",
+            )
+        }
         val client = foodMindApiClient()
-        setContent { FoodMindTheme { RecordEditorScreen(client, type, id, ::finish, contentResolver) } }
+        setContent { FoodMindTheme { RecordEditorScreen(client, type, id, prefill, ::finish, contentResolver) } }
     }
     companion object {
         private const val EXTRA_TYPE = "record_type"; private const val EXTRA_ID = "record_id"
+        private const val EXTRA_PREFILL_MEAL_ID = "prefill_meal_id"; private const val EXTRA_PREFILL_MEAL_NAME = "prefill_meal_name"
+        private const val EXTRA_PREFILL_PLACE_ID = "prefill_place_id"; private const val EXTRA_PREFILL_PLACE_NAME = "prefill_place_name"
+        private const val EXTRA_PREFILL_PRICE = "prefill_price"; private const val EXTRA_PREFILL_CURRENCY = "prefill_currency"
+        private const val EXTRA_PREFILL_SESSION_ID = "prefill_session_id"; private const val EXTRA_PREFILL_CANDIDATE_ID = "prefill_candidate_id"
         fun intent(context: Context, type: String, id: String?) = Intent(context, RecordEditorActivity::class.java).putExtra(EXTRA_TYPE, type).apply { id?.let { putExtra(EXTRA_ID, it) } }
+        internal fun intent(context: Context, prefill: FoodRecordPrefill) = Intent(context, RecordEditorActivity::class.java)
+            .putExtra(EXTRA_TYPE, "FOOD")
+            .putExtra(EXTRA_PREFILL_SESSION_ID, prefill.recommendationSessionId)
+            .putExtra(EXTRA_PREFILL_CANDIDATE_ID, prefill.recommendationCandidateId)
+            .putExtra(EXTRA_PREFILL_MEAL_ID, prefill.mealId)
+            .putExtra(EXTRA_PREFILL_MEAL_NAME, prefill.mealName)
+            .putExtra(EXTRA_PREFILL_PLACE_ID, prefill.placeId)
+            .putExtra(EXTRA_PREFILL_PLACE_NAME, prefill.placeName)
+            .putExtra(EXTRA_PREFILL_PRICE, prefill.price)
+            .putExtra(EXTRA_PREFILL_CURRENCY, prefill.currency)
     }
 }
 
@@ -191,12 +241,13 @@ private fun RecordEditorScreen(
     client: FoodMindApiClient,
     type: String,
     id: String?,
+    prefill: FoodRecordPrefill?,
     onBack: () -> Unit,
     contentResolver: android.content.ContentResolver,
 ) {
     var seed by remember { mutableStateOf<RecordFormSeed?>(if (id == null) RecordFormSeed() else null) }
-    var name by remember { mutableStateOf("") }; var place by remember { mutableStateOf("") }; var occurredAt by remember { mutableStateOf(formatFoodMindTimestampForEditor(Instant.now().toString())) }
-    var price by remember { mutableStateOf("") }; var currency by remember { mutableStateOf("SGD") }; var rating by remember { mutableStateOf("") }
+    var name by remember(prefill) { mutableStateOf(prefill?.mealName.orEmpty()) }; var place by remember(prefill) { mutableStateOf(prefill?.placeName.orEmpty()) }; var occurredAt by remember { mutableStateOf(formatFoodMindTimestampForEditor(Instant.now().toString())) }
+    var price by remember(prefill) { mutableStateOf(prefill?.price.orEmpty()) }; var currency by remember(prefill) { mutableStateOf(prefill?.currency ?: "SGD") }; var rating by remember { mutableStateOf("") }
     var comment by remember { mutableStateOf("") }; var visibility by remember { mutableStateOf("PRIVATE") }; var repeat by remember { mutableStateOf<Boolean?>(null) }
     var sweetness by remember { mutableStateOf("") }; var ice by remember { mutableStateOf("") }; var groupId by remember { mutableStateOf("") }
     var mediaAssetId by remember { mutableStateOf<String?>(null) }; var selectedImage by remember { mutableStateOf<Uri?>(null) }
@@ -204,6 +255,10 @@ private fun RecordEditorScreen(
     var originalMediaAssetId by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }; var error by remember { mutableStateOf<String?>(null) }
     var version by remember { mutableStateOf(0L) }
+    val recommendedMealId = prefill?.mealId
+    val recommendedPlaceId = prefill?.placeId
+    val recommendationSessionId = prefill?.recommendationSessionId
+    val recommendationCandidateId = prefill?.recommendationCandidateId
     val scope = rememberCoroutineScope()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { selectedImage = it } }
     LaunchedEffect(id) {
@@ -250,6 +305,7 @@ private fun RecordEditorScreen(
                         val occurredAtIso = normaliseFoodMindTimestamp(occurredAt) ?: run { error = "Enter a valid local date and time."; return@launch }
                         saving = true; error = null
                         var newlyUploadedId: String? = null
+                        var createdFoodRecord: FoodRecordResponse? = null
                         runCatching {
                             val uploadedId = selectedImage?.let { MediaUploadRepository(client).upload(contentResolver, it).also { id -> newlyUploadedId = id } } ?: mediaAssetId
                             if (type == "DRINK") {
@@ -257,12 +313,24 @@ private fun RecordEditorScreen(
                                 else UpdateDrinkRecordRequest(drinkName = name.trim(), shopNameSnapshot = place.trim(), occurredAt = occurredAtIso, price = price.toDoubleOrNull(), currency = currency, rating = rating.toDoubleOrNull(), comment = comment.ifBlank { null }, sweetnessLevel = sweetness.toIntOrNull(), iceLevel = ice.toIntOrNull(), wouldBuyAgain = repeat, visibility = visibility, groupId = groupId.ifBlank { null }, mediaAssetId = uploadedId)
                                 if (id == null) client.createDrinkRecord(request as CreateDrinkRecordRequest) else client.updateDrinkRecord(id, version, request as UpdateDrinkRecordRequest)
                             } else {
-                                val request = if (id == null) CreateFoodRecordRequest(mealNameSnapshot = name.trim(), placeNameSnapshot = place.trim().ifBlank { null }, occurredAt = occurredAtIso, price = price.toDoubleOrNull(), currency = currency, rating = rating.toDoubleOrNull(), comment = comment.ifBlank { null }, wouldEatAgain = repeat, visibility = visibility, groupId = groupId.ifBlank { null }, mediaAssetId = uploadedId)
+                                val request = if (id == null) CreateFoodRecordRequest(mealId = recommendedMealId, mealNameSnapshot = name.trim(), placeId = recommendedPlaceId, placeNameSnapshot = place.trim().ifBlank { null }, occurredAt = occurredAtIso, price = price.toDoubleOrNull(), currency = currency, rating = rating.toDoubleOrNull(), comment = comment.ifBlank { null }, wouldEatAgain = repeat, visibility = visibility, groupId = groupId.ifBlank { null }, mediaAssetId = uploadedId)
                                 else UpdateFoodRecordRequest(mealNameSnapshot = name.trim(), placeNameSnapshot = place.trim().ifBlank { null }, occurredAt = occurredAtIso, price = price.toDoubleOrNull(), currency = currency, rating = rating.toDoubleOrNull(), comment = comment.ifBlank { null }, wouldEatAgain = repeat, visibility = visibility, groupId = groupId.ifBlank { null }, mediaAssetId = uploadedId)
-                                if (id == null) client.createFoodRecord(request as CreateFoodRecordRequest) else client.updateFoodRecord(id, version, request as UpdateFoodRecordRequest)
+                                if (id == null) {
+                                    createdFoodRecord = client.createFoodRecord(request as CreateFoodRecordRequest)
+                                } else {
+                                    client.updateFoodRecord(id, version, request as UpdateFoodRecordRequest)
+                                }
                             }
                             originalMediaAssetId?.takeIf { it != uploadedId }?.let { runCatching { client.deleteMediaAsset(it) } }
-                        }.onSuccess { onBack() }.onFailure {
+                        }.onSuccess {
+                            createdFoodRecord?.takeIf { recommendationSessionId != null && recommendationCandidateId != null }?.let { record ->
+                                scope.launch {
+                                    record.rating?.let { score -> runCatching { client.submitRecommendationFeedback(recommendationSessionId!!, RecommendationFeedbackRequest(recommendationCandidateId, "LATER_RATED", rating = score, resultingFoodRecordId = record.id)) } }
+                                    record.wouldEatAgain?.let { value -> runCatching { client.submitRecommendationFeedback(recommendationSessionId!!, RecommendationFeedbackRequest(recommendationCandidateId, "WOULD_EAT_AGAIN", booleanValue = value, resultingFoodRecordId = record.id)) } }
+                                }
+                            }
+                            onBack()
+                        }.onFailure {
                             newlyUploadedId?.let { uploaded -> runCatching { client.deleteMediaAsset(uploaded) } }
                             error = it.message ?: "Could not save. Check your input."
                         }

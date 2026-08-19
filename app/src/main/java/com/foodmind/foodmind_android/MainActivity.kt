@@ -23,7 +23,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
-import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -82,7 +81,7 @@ class MainActivity : ComponentActivity() {
             FoodMindTheme {
                 val state by viewModel.state.collectAsStateWithLifecycle()
                 HomeScreen(
-                    state, apiClient, viewModel::selectMode, viewModel::generateRecommendation, viewModel::tryAnother,
+                    state, apiClient, viewModel::selectMode, viewModel::generateRecommendation,
                     onNavigate = ::openFoodMindRoot,
                     onRecord = { startActivity(RecordEditorActivity.intent(this, "FOOD", null)) },
                     onChat = { startActivity(Intent(this, ChatListActivity::class.java)) },
@@ -107,7 +106,6 @@ private fun HomeScreen(
     client: FoodMindApiClient,
     onModeChange: (HomeMode) -> Unit,
     onGenerate: (GenerateRecommendationRequest) -> Unit,
-    onTryAnother: () -> Unit,
     onNavigate: (FoodMindRoot) -> Unit,
     onRecord: () -> Unit,
     onChat: () -> Unit,
@@ -179,6 +177,9 @@ private fun HomeScreen(
         preferences = effectivePreferences,
         requestedFor = requestedFor,
     )
+    LaunchedEffect(state.recommendation?.sessionId) {
+        state.recommendation?.sessionId?.let(onRecommendation)
+    }
     FoodMindRootScaffold(
         FoodMindRoot.HOME, "FoodMind", onNavigate,
         topActions = { IconButton(onClick = onChat) { Icon(Icons.Outlined.ChatBubbleOutline, "FoodMind Assistant") } },
@@ -216,19 +217,6 @@ private fun HomeScreen(
                     }
             }
             contextError?.let { item { Text(it, color = FoodMindCoral) } }
-            if (state.hasResult) item {
-                    Card(
-                        onClick = { state.recommendation?.sessionId?.let(onRecommendation) },
-                        shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = FoodMindSurface), border = BorderStroke(1.dp, FoodMindLine),
-                    ) {
-                        Column(Modifier.padding(18.dp)) {
-                            Text("FoodMind Recommendations", color = FoodMindGreen, fontWeight = FontWeight.Bold)
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text(state.resultTitle, Modifier.weight(1f), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold); Icon(Icons.Outlined.ChevronRight, null) }
-                            Text(state.resultMeta, color = FoodMindMuted, modifier = Modifier.padding(top = 5.dp)); Text(state.resultReason, modifier = Modifier.padding(top = 10.dp))
-                            TextButton(onClick = onTryAnother) { Text("Try another set for the group") }
-                        }
-                    }
-            }
             state.errorMessage?.let { item { FoodMindSurfaceCard { Column { Text(it, color = FoodMindCoral); TextButton(onClick = { onGenerate(request) }) { Text("Try again") } } } } }
         }
     }
