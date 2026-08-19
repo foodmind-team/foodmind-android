@@ -57,7 +57,7 @@ class RecommendationDetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val sessionId = intent.getStringExtra(EXTRA_SESSION_ID).orEmpty(); val client = foodMindApiClient()
-        setContent { FoodMindTheme { RecommendationDetailScreen(client, sessionId, ::finish, { startActivity(RecommendationDetailActivity.intent(this, it)); finish() }, { type, id -> startActivity(CatalogueDetailActivity.intent(this, type, id)) }) } }
+        setContent { FoodMindTheme { RecommendationDetailScreen(client, sessionId, ::finish, { startActivity(RecommendationDetailActivity.intent(this, it)); finish() }, { type, id -> startActivity(CatalogueDetailActivity.intent(this, type, id)) }, { startActivity(RecordEditorActivity.intent(this, foodRecordPrefillFrom(it, sessionId))) }) } }
     }
     companion object { private const val EXTRA_SESSION_ID = "session_id"; fun intent(context: Context, sessionId: String) = Intent(context, RecommendationDetailActivity::class.java).putExtra(EXTRA_SESSION_ID, sessionId) }
 }
@@ -69,6 +69,7 @@ private fun RecommendationDetailScreen(
     onBack: () -> Unit,
     onNewSession: (String) -> Unit,
     onCatalogue: (String, String) -> Unit,
+    onRecord: (RecommendationCandidateResponse) -> Unit,
 ) {
     var response by remember { mutableStateOf<RecommendationResponse?>(null) }; var groups by remember { mutableStateOf<List<GroupResponse>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }; var notice by remember { mutableStateOf<String?>(null) }; var feedback by remember { mutableStateOf(setOf<String>()) }; var permanentlyHidden by remember { mutableStateOf(setOf<String>()) }; var pendingPermanentRejection by remember { mutableStateOf<RecommendationCandidateResponse?>(null) }; var saved by remember { mutableStateOf(setOf<String>()) }; var shared by remember { mutableStateOf(setOf<String>()) }; var busy by remember { mutableStateOf(false) }; var refresh by remember { mutableStateOf(0) }
@@ -87,7 +88,7 @@ private fun RecommendationDetailScreen(
                     itemsIndexed(candidates, key = { _, item -> item.candidateId.orEmpty() }) { index, candidate ->
                         CandidateCard(index, candidate, candidate.candidateId in feedback, candidate.mealId in saved, candidate.candidateId in shared,
                             onPlace = { candidate.placeId?.let { onCatalogue("PLACE", it) } },
-                            onAccept = { candidate.candidateId?.let { id -> scope.launch { busy = true; runCatching { client.submitRecommendationFeedback(sessionId, RecommendationFeedbackRequest(id, "ACCEPTED")) }.onSuccess { feedback = feedback + id }.onFailure { error = "Could not submit feedback." }; busy = false } } },
+                            onAccept = { candidate.candidateId?.let { id -> scope.launch { busy = true; runCatching { client.submitRecommendationFeedback(sessionId, RecommendationFeedbackRequest(id, "ACCEPTED")) }.onSuccess { feedback = feedback + id; onRecord(candidate) }.onFailure { error = "Could not submit feedback." }; busy = false } } },
                             onReject = { candidate.candidateId?.let { id -> scope.launch { runCatching { client.submitRecommendationFeedback(sessionId, RecommendationFeedbackRequest(id, "REJECTED", "NOT_IN_MOOD")) }.onSuccess { feedback = feedback + id } } } },
                             onPermanentReject = { pendingPermanentRejection = candidate },
                             onSave = { candidate.mealId?.let { id -> scope.launch { runCatching { client.saveWantToTry("MEAL", id) }.onSuccess { saved = saved + id }.onFailure { error = "Could not save." } } } },
