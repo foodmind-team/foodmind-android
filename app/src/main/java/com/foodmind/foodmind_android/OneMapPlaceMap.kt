@@ -1,9 +1,7 @@
 package com.foodmind.foodmind_android
 
 import android.Manifest
-import android.content.Context
 import android.content.pm.PackageManager
-import android.location.LocationManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebResourceRequest
@@ -40,8 +38,7 @@ fun OneMapPlaceMap(client: FoodMindApiClient, placeId: String, placeName: String
     var map by remember { mutableStateOf<WebView?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
     fun routeFromDevice() {
-        val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        val location = runCatching { manager.getLastKnownLocation(LocationManager.GPS_PROVIDER) ?: manager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) }.getOrNull()
+        val location = currentCoordinates(context)
         if (location == null) { status = "Current location is unavailable. Turn on location and try again."; return }
         if (!isInSingapore(location.latitude, location.longitude)) {
             status = "Walking routes are available only when your current location is in Singapore."
