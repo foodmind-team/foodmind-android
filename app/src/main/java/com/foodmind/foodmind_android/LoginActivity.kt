@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,12 +14,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
@@ -55,6 +60,8 @@ class LoginActivity : ComponentActivity() {
                     onPasswordChange = viewModel::updatePassword,
                     onDisplayNameChange = viewModel::updateDisplayName,
                     onPrivacyConsentChange = viewModel::updatePrivacyConsent,
+                    onOpenPrivacyPolicy = viewModel::openPrivacyPolicy,
+                    onClosePrivacyPolicy = viewModel::closePrivacyPolicy,
                     onModeChange = viewModel::setRegistering,
                     onLogin = viewModel::login,
                     onBack = ::finish,
@@ -71,6 +78,8 @@ private fun LoginScreen(
     onPasswordChange: (String) -> Unit,
     onDisplayNameChange: (String) -> Unit,
     onPrivacyConsentChange: (Boolean) -> Unit,
+    onOpenPrivacyPolicy: () -> Unit,
+    onClosePrivacyPolicy: () -> Unit,
     onModeChange: (Boolean) -> Unit,
     onLogin: () -> Unit,
     onBack: () -> Unit,
@@ -106,23 +115,34 @@ private fun LoginScreen(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        if (state.registering) Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .toggleable(
-                    value = state.privacyConsentAccepted,
-                    role = Role.Checkbox,
-                    onValueChange = onPrivacyConsentChange,
-                ),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Checkbox(
-                checked = state.privacyConsentAccepted,
-                onCheckedChange = null,
-            )
+        if (state.registering) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .toggleable(
+                        value = state.privacyConsentAccepted,
+                        role = Role.Checkbox,
+                        onValueChange = onPrivacyConsentChange,
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Checkbox(
+                    checked = state.privacyConsentAccepted,
+                    onCheckedChange = null,
+                )
+                Text(
+                    text = stringResource(R.string.privacy_collection_consent),
+                    color = FoodMindMuted,
+                )
+            }
             Text(
-                text = stringResource(R.string.privacy_collection_consent),
-                color = FoodMindMuted,
+                text = stringResource(R.string.privacy_policy_link),
+                color = FoodMindGreenDark,
+                style = MaterialTheme.typography.labelLarge,
+                textDecoration = TextDecoration.Underline,
+                modifier = Modifier
+                    .padding(start = 32.dp)
+                    .clickable { onOpenPrivacyPolicy() },
             )
         }
         state.errorMessageRes?.let { Text(stringResource(it), color = FoodMindCoral) }
@@ -138,5 +158,20 @@ private fun LoginScreen(
             Text(stringResource(if (state.registering) R.string.login_existing_account else R.string.login_new_account))
         }
         OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.action_back)) }
+
+        if (state.showPrivacyPolicy) {
+            AlertDialog(
+                onDismissRequest = onClosePrivacyPolicy,
+                title = { Text(stringResource(R.string.privacy_policy_title)) },
+                text = {
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        Text(stringResource(R.string.privacy_policy_body), color = FoodMindMuted)
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = onClosePrivacyPolicy) { Text(stringResource(R.string.privacy_policy_close)) }
+                },
+            )
+        }
     }
 }
