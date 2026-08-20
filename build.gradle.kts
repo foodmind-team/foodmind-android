@@ -155,8 +155,8 @@ tasks.register("apiCoverage") {
         check(missing.isEmpty() && extra.isEmpty() && duplicates.isEmpty()) {
             "Android API coverage drift. Missing=$missing Extra=$extra Duplicates=$duplicates"
         }
-        check(expected.size == 87) { "Expected the release contract to contain 87 operations, found ${expected.size}." }
-        logger.lifecycle("Android API coverage passed: ${expected.size}/87 operations, no duplicates.")
+        check(expected.size == 93) { "Expected the release contract to contain 93 operations, found ${expected.size}." }
+        logger.lifecycle("Android API coverage passed: ${expected.size}/93 operations, no duplicates.")
     }
 }
 

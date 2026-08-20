@@ -51,11 +51,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
 import com.foodmind.foodmind_android.core.network.FoodMindSession
-import com.foodmind.foodmind_android.core.network.AllergenPreference
 import com.foodmind.foodmind_android.core.network.GenerateRecommendationRequest
 import com.foodmind.foodmind_android.core.network.GroupResponse
-import com.foodmind.foodmind_android.core.network.RecommendationConstraintsRequest
-import com.foodmind.foodmind_android.core.network.UserPreferencesResponse
 import com.foodmind.foodmind_android.domain.repository.RecipeDraftStore
 import com.foodmind.foodmind_android.domain.repository.RecommendationRepositoryImpl
 import java.time.Instant
@@ -113,21 +110,15 @@ private fun HomeScreen(
     onRecommendation: (String) -> Unit,
 ) {
     var groups by remember { mutableStateOf<List<GroupResponse>>(emptyList()) }
-    var preferences by remember { mutableStateOf<UserPreferencesResponse?>(null) }
     var groupId by remember { mutableStateOf("") }
     var mealType by remember { mutableStateOf("DINNER") }
     var budget by remember { mutableStateOf("") }
     var currency by remember { mutableStateOf("SGD") }
-    var area by remember { mutableStateOf("") }
     var mood by remember { mutableStateOf("") }
     var requestedFor by remember { mutableStateOf(Instant.now().plus(1, ChronoUnit.HOURS).toString()) }
     var maxDistance by remember { mutableStateOf("") }
-    var latitude by remember { mutableStateOf("") }
-    var longitude by remember { mutableStateOf("") }
-    var maxSpice by remember { mutableStateOf("") }
-    var cleanliness by remember { mutableStateOf("") }
-    var dietaryTagCodes by remember { mutableStateOf<List<String>>(emptyList()) }
-    var allergenCodes by remember { mutableStateOf<List<String>>(emptyList()) }
+    var latitude by remember { mutableStateOf<Double?>(null) }
+    var longitude by remember { mutableStateOf<Double?>(null) }
     var contextError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val contextLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -136,45 +127,29 @@ private fun HomeScreen(
             mealType = data.getStringExtra(RecommendationContextActivity.EXTRA_MEAL_TYPE) ?: mealType
             budget = data.getStringExtra(RecommendationContextActivity.EXTRA_BUDGET).orEmpty()
             currency = data.getStringExtra(RecommendationContextActivity.EXTRA_CURRENCY) ?: currency
-            area = data.getStringExtra(RecommendationContextActivity.EXTRA_AREA).orEmpty()
             mood = data.getStringExtra(RecommendationContextActivity.EXTRA_MOOD).orEmpty()
             requestedFor = data.getStringExtra(RecommendationContextActivity.EXTRA_REQUESTED_FOR) ?: requestedFor
             maxDistance = data.getStringExtra(RecommendationContextActivity.EXTRA_MAX_DISTANCE).orEmpty()
-            latitude = data.getStringExtra(RecommendationContextActivity.EXTRA_LATITUDE).orEmpty()
-            longitude = data.getStringExtra(RecommendationContextActivity.EXTRA_LONGITUDE).orEmpty()
-            maxSpice = data.getStringExtra(RecommendationContextActivity.EXTRA_MAX_SPICE).orEmpty()
-            cleanliness = data.getStringExtra(RecommendationContextActivity.EXTRA_CLEANLINESS).orEmpty()
-            dietaryTagCodes = data.getStringArrayListExtra(RecommendationContextActivity.EXTRA_DIETARY_TAGS).orEmpty()
-            allergenCodes = data.getStringArrayListExtra(RecommendationContextActivity.EXTRA_ALLERGENS).orEmpty()
+            latitude = data.takeIf { it.hasExtra(RecommendationContextActivity.EXTRA_LATITUDE) }?.getDoubleExtra(RecommendationContextActivity.EXTRA_LATITUDE, 0.0)
+            longitude = data.takeIf { it.hasExtra(RecommendationContextActivity.EXTRA_LONGITUDE) }?.getDoubleExtra(RecommendationContextActivity.EXTRA_LONGITUDE, 0.0)
         }
     }
     LaunchedEffect(Unit) {
         runCatching { client.groups() }.onSuccess { groups = it }
         runCatching { client.preferences() }.onSuccess { p ->
-            preferences = p
-            budget = p.budgetMax?.toString().orEmpty(); currency = p.currency ?: "SGD"; area = p.preferredArea.orEmpty(); mealType = p.preferredMealTypes.firstOrNull() ?: "DINNER"
-            maxDistance = p.maxDistanceKm?.toString().orEmpty(); latitude = p.preferredLatitude?.toString().orEmpty(); longitude = p.preferredLongitude?.toString().orEmpty()
-            maxSpice = p.spiceTolerance?.toString().orEmpty(); cleanliness = p.minimumCleanlinessEvidenceScore?.toString().orEmpty()
-            dietaryTagCodes = p.dietaryTagCodes; allergenCodes = p.allergens.map { it.code }
+            budget = p.budgetMax?.toString().orEmpty(); currency = p.currency ?: "SGD"; mealType = p.preferredMealTypes.firstOrNull() ?: "DINNER"
+            maxDistance = p.maxDistanceKm?.toString().orEmpty(); latitude = p.preferredLatitude; longitude = p.preferredLongitude
         }
     }
-    val effectivePreferences = (preferences ?: UserPreferencesResponse()).copy(
-        preferredLatitude = latitude.toDoubleOrNull(),
-        preferredLongitude = longitude.toDoubleOrNull(),
-        maxDistanceKm = maxDistance.toDoubleOrNull(),
-        spiceTolerance = maxSpice.toIntOrNull(),
-        minimumCleanlinessEvidenceScore = cleanliness.toDoubleOrNull(),
-        dietaryTagCodes = dietaryTagCodes,
-        allergens = allergenCodes.map { code -> preferences?.allergens?.find { it.code == code } ?: AllergenPreference(code, "AVOID") },
-    )
     val request = buildHomeRecommendationRequest(
         groupId = groupId,
         mealType = mealType,
         budget = budget,
         currency = currency,
-        area = area,
         mood = mood,
-        preferences = effectivePreferences,
+        latitude = latitude,
+        longitude = longitude,
+        maxDistanceKm = maxDistance.toDoubleOrNull(),
         requestedFor = requestedFor,
     )
     LaunchedEffect(state.recommendation?.sessionId) {
@@ -205,13 +180,12 @@ private fun HomeScreen(
                                 Column(Modifier.weight(1f)) { Text("Tonight’s recommendation context", color = Color(0xFFCFE5D8), fontSize = 12.sp, fontWeight = FontWeight.Bold); Text(groups.firstOrNull { it.id == groupId }?.name ?: "Recommend for me", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold) }
                                 IconButton(onClick = {
                                     contextLauncher.launch(RecommendationContextActivity.intent(
-                                        context, groupId, mealType, budget, currency, area, mood, requestedFor,
-                                        maxDistance, latitude, longitude, maxSpice, cleanliness,
-                                        dietaryTagCodes, allergenCodes,
+                                        context, groupId, mealType, budget, currency, mood, requestedFor,
+                                        maxDistance, latitude, longitude,
                                     ))
                                 }) { Icon(Icons.Outlined.Tune, "Adjust recommendation context", tint = Color.White) }
                             }
-                            Text(listOf(mealType, budget.takeIf(String::isNotBlank)?.let { "$it $currency" }, area.takeIf(String::isNotBlank)).filterNotNull().joinToString(" · "), color = Color.White, modifier = Modifier.padding(top = 8.dp))
+                            Text(listOf(mealType, budget.takeIf(String::isNotBlank)?.let { "$it $currency" }, maxDistance.takeIf(String::isNotBlank)?.let { "Within $it km" }).filterNotNull().joinToString(" · "), color = Color.White, modifier = Modifier.padding(top = 8.dp))
                             Button(onClick = { if (currency.length == 3) onGenerate(request) else contextError = "Currency must use a 3-letter code." }, enabled = !state.isGenerating, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) { if (state.isGenerating) CircularProgressIndicator() else Text("Generate recommendations") }
                         }
                     }
@@ -227,9 +201,10 @@ internal fun buildHomeRecommendationRequest(
     mealType: String,
     budget: String,
     currency: String,
-    area: String,
     mood: String,
-    preferences: UserPreferencesResponse?,
+    latitude: Double?,
+    longitude: Double?,
+    maxDistanceKm: Double?,
     requestedFor: String,
 ): GenerateRecommendationRequest {
     val maxBudget = budget.toDoubleOrNull()
@@ -238,17 +213,10 @@ internal fun buildHomeRecommendationRequest(
         mealType = mealType,
         maxBudget = maxBudget,
         currency = currency.takeIf { maxBudget != null },
-        area = area.ifBlank { null },
-        latitude = preferences?.preferredLatitude,
-        longitude = preferences?.preferredLongitude,
-        maxDistanceKm = preferences?.maxDistanceKm,
+        latitude = latitude,
+        longitude = longitude,
+        maxDistanceKm = maxDistanceKm,
         mood = mood.ifBlank { null },
         requestedFor = requestedFor,
-        constraints = RecommendationConstraintsRequest(
-            avoidAllergenCodes = preferences?.allergens?.map { it.code },
-            requiredDietaryTagCodes = preferences?.dietaryTagCodes,
-            maxSpiceLevel = preferences?.spiceTolerance,
-            minimumCleanlinessEvidenceScore = preferences?.minimumCleanlinessEvidenceScore,
-        ),
     )
 }

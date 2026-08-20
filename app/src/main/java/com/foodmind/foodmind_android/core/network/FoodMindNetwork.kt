@@ -301,6 +301,16 @@ class FoodMindApiClient(
     suspend fun finishCookingPlan(planId: String): CookingPlanResponse =
         api.finishCookingPlan(planId)
 
+    suspend fun cookingPlanExecution(planId: String) = api.cookingPlanExecution(planId)
+    suspend fun updateCookingPlanExecution(planId: String, stepId: String, status: String, version: Long) =
+        api.updateCookingPlanExecution(planId, CookingPlanExecutionUpdateRequest(stepId, status, version))
+    suspend fun resetCookingPlanExecution(planId: String, version: Long) =
+        api.resetCookingPlanExecution(planId, version)
+    suspend fun saveCookingPlan(planId: String) = api.saveCookingPlan(planId)
+    suspend fun removeSavedCookingPlan(planId: String, resetProgress: Boolean = false) =
+        api.removeSavedCookingPlan(planId, resetProgress)
+    suspend fun savedCookingPlans(page: Int = 0) = api.savedCookingPlans(page)
+
     suspend fun cancelCookingPlanTask(planId: String): retrofit2.Response<CookingPlanResponse> =
         api.cancelCookingPlanTask(planId, "{}".toRequestBody(null))
 

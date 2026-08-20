@@ -281,12 +281,12 @@ private fun PreferencesScreen(client: FoodMindApiClient, onBack: () -> Unit) {
     var budgetMin by remember { mutableStateOf("") }
     var budgetMax by remember { mutableStateOf("") }
     var currency by remember { mutableStateOf("SGD") }
-    var area by remember { mutableStateOf("") }
     var distance by remember { mutableStateOf("") }
     var goal by remember { mutableStateOf("") }
     var spice by remember { mutableStateOf("") }
-    var latitude by remember { mutableStateOf("") }
-    var longitude by remember { mutableStateOf("") }
+    var latitude by remember { mutableStateOf<Double?>(null) }
+    var longitude by remember { mutableStateOf<Double?>(null) }
+    var locationMessage by remember { mutableStateOf("No default location saved. Distance filtering is off.") }
     var cleanlinessPriority by remember { mutableStateOf("") }
     var cleanlinessScore by remember { mutableStateOf("") }
     var sweetness by remember { mutableStateOf("") }
@@ -304,8 +304,9 @@ private fun PreferencesScreen(client: FoodMindApiClient, onBack: () -> Unit) {
         runCatching { coroutineScope { val preferences = async { client.preferences() }; val references = async { client.referenceData() }; preferences.await() to references.await() } }
             .onSuccess { (p, r) ->
                 value = p; reference = r; budgetMin = p.budgetMin?.toString().orEmpty(); budgetMax = p.budgetMax?.toString().orEmpty()
-                currency = p.currency ?: "SGD"; area = p.preferredArea.orEmpty(); distance = p.maxDistanceKm?.toString().orEmpty()
-                goal = p.foodGoal.orEmpty(); spice = p.spiceTolerance?.toString().orEmpty(); latitude = p.preferredLatitude?.toString().orEmpty(); longitude = p.preferredLongitude?.toString().orEmpty()
+                currency = p.currency ?: "SGD"; distance = p.maxDistanceKm?.toString().orEmpty()
+                goal = p.foodGoal.orEmpty(); spice = p.spiceTolerance?.toString().orEmpty(); latitude = p.preferredLatitude; longitude = p.preferredLongitude
+                locationMessage = if (latitude != null && longitude != null) "Saved default location is ready." else "No default location saved. Distance filtering is off."
                 cleanlinessPriority = p.cleanlinessPriority?.toString().orEmpty(); cleanlinessScore = p.minimumCleanlinessEvidenceScore?.toString().orEmpty(); sweetness = p.drinkSweetnessPreference.orEmpty(); ice = p.drinkIcePreference.orEmpty(); dietary = p.dietaryTagCodes.toSet()
                 allergens = p.allergens.map { it.code }.toSet(); allergenSeverity = p.allergens.associate { it.code to it.severity }; likedCuisines = p.likedCuisineCodes.toSet(); dislikedCuisines = p.dislikedCuisineCodes.toSet(); meals = p.preferredMealTypes.toSet()
             }.onFailure { error = "Could not load preferences." }
@@ -320,8 +321,36 @@ private fun PreferencesScreen(client: FoodMindApiClient, onBack: () -> Unit) {
                 OutlinedTextField(budgetMax, { budgetMax = it }, label = { Text("Maximum budget") }, modifier = Modifier.weight(1f))
             } }
             item { OutlinedTextField(currency, { currency = it.uppercase().take(3) }, label = { Text("Currency") }, modifier = Modifier.fillMaxWidth()) }
-            item { OutlinedTextField(area, { area = it }, label = { Text("Usual area") }, modifier = Modifier.fillMaxWidth()) }
-            item { OutlinedTextField(distance, { distance = it }, label = { Text("Maximum distance (km)") }, modifier = Modifier.fillMaxWidth()) }
+            item { FoodMindSurfaceCard { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Default location", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Use your current location as the default starting point. It is stored only when you save preferences.", color = FoodMindMuted)
+                UseCurrentLocationButton(
+                    label = if (latitude != null && longitude != null) "Update current location" else "Use current location",
+                    onLocation = { coordinates ->
+                        latitude = coordinates.latitude
+                        longitude = coordinates.longitude
+                        locationMessage = "Current location is ready and will be saved with your preferences."
+                        error = null
+                    },
+                    onError = { message -> error = message },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (latitude != null && longitude != null) TextButton(onClick = {
+                    latitude = null
+                    longitude = null
+                    distance = ""
+                    locationMessage = "No default location saved. Distance filtering is off."
+                }) { Text("Remove saved location") }
+                Text(locationMessage, color = FoodMindMuted)
+                OutlinedTextField(
+                    distance,
+                    { distance = it },
+                    label = { Text("Maximum distance (km)") },
+                    supportingText = { Text(if (latitude != null && longitude != null) "Distance is measured from the saved location." else "Choose your current location before setting a distance.") },
+                    enabled = latitude != null && longitude != null,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } } }
             item { OutlinedTextField(spice, { spice = it.filter(Char::isDigit) }, label = { Text("Spice tolerance") }, modifier = Modifier.fillMaxWidth()) }
             item { OutlinedTextField(goal, { goal = it }, label = { Text("Food goals") }, modifier = Modifier.fillMaxWidth(), minLines = 2) }
             item { PreferenceChips("Preferred cuisines", reference.cuisines.map { it.code to it.name }, likedCuisines) { likedCuisines = it } }
@@ -340,22 +369,21 @@ private fun PreferencesScreen(client: FoodMindApiClient, onBack: () -> Unit) {
                     }
                 }
             }
-            item { Text("Cleanliness evidence & location", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold); Text("These are decision-support signals and do not mean FoodMind has inspected or certified a kitchen.", color = FoodMindMuted) }
+            item { Text("Cleanliness evidence", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold); Text("These are decision-support signals and do not mean FoodMind has inspected or certified a kitchen.", color = FoodMindMuted) }
             item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(cleanlinessPriority, { cleanlinessPriority = it.filter(Char::isDigit) }, label = { Text("Evidence priority 0–5") }, modifier = Modifier.weight(1f)); OutlinedTextField(cleanlinessScore, { cleanlinessScore = it }, label = { Text("Minimum evidence score") }, modifier = Modifier.weight(1f)) } }
-            item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(latitude, { latitude = it }, label = { Text("Usual latitude") }, modifier = Modifier.weight(1f)); OutlinedTextField(longitude, { longitude = it }, label = { Text("Usual longitude") }, modifier = Modifier.weight(1f)) } }
             item { error?.let { Text(it, color = FoodMindCoral) }; Button(
                 onClick = { scope.launch {
                     saving = true
                     val request = ReplacePreferencesRequest(
                         budgetMin = budgetMin.toDoubleOrNull(), budgetMax = budgetMax.toDoubleOrNull(), currency = currency,
-                        spiceTolerance = spice.toIntOrNull(), preferredArea = area.trim().ifBlank { null }, maxDistanceKm = distance.toDoubleOrNull(),
+                        spiceTolerance = spice.toIntOrNull(), preferredArea = null, maxDistanceKm = if (latitude != null && longitude != null) distance.toDoubleOrNull() else null,
                         cleanlinessPriority = cleanlinessPriority.toIntOrNull(), minimumCleanlinessEvidenceScore = cleanlinessScore.toDoubleOrNull(),
                         foodGoal = goal.trim().ifBlank { null }, drinkSweetnessPreference = sweetness.trim().ifBlank { null },
                         drinkIcePreference = ice.trim().ifBlank { null }, cookingRegion = value?.cookingRegion,
                         likedCuisineCodes = likedCuisines.toList(),
                         dislikedCuisineCodes = dislikedCuisines.toList(), dietaryTagCodes = dietary.toList(),
                         allergens = allergens.map { AllergenPreferenceRequest(it, allergenSeverity[it] ?: "MODERATE") }, preferredMealTypes = meals.toList(),
-                        preferredLatitude = latitude.toDoubleOrNull(), preferredLongitude = longitude.toDoubleOrNull(),
+                        preferredLatitude = latitude, preferredLongitude = longitude,
                     )
                     runCatching { client.replacePreferences(request) }.onSuccess { onBack() }.onFailure { error = "Could not save. Check your input." }
                     saving = false

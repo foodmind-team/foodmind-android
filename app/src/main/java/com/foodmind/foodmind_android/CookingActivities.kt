@@ -54,6 +54,8 @@ import com.foodmind.foodmind_android.core.network.CookingDecisionResponse
 import com.foodmind.foodmind_android.core.network.CookingConfirmationQuestionResponse
 import com.foodmind.foodmind_android.core.network.CookingIngredientRequest
 import com.foodmind.foodmind_android.core.network.CookingPlanResponse
+import com.foodmind.foodmind_android.core.network.CookingPlanExecutionResponse
+import com.foodmind.foodmind_android.core.network.CookingPlanSourceResponse
 import com.foodmind.foodmind_android.core.network.CookingRepairOptionResponse
 import com.foodmind.foodmind_android.core.network.CookingPlanSummary
 import com.foodmind.foodmind_android.core.network.CookingPlanTaskResponse
@@ -67,7 +69,6 @@ import com.foodmind.foodmind_android.domain.repository.CookingPlanTaskRepository
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.util.Locale
-import org.json.JSONObject
 
 class ManualCookingActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -198,7 +199,18 @@ class CookingPlanDetailActivity : ComponentActivity() {
             startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
             finish()
         }
-        setContent { FoodMindTheme { CookingPlanDetailScreen(client, id, ::finish, onHome) } }
+        setContent {
+            FoodMindTheme {
+                CookingPlanDetailScreen(client, id, ::finish, onHome) { recipeIds ->
+                    startActivity(
+                        Intent(this, CookingHomeActivity::class.java).putStringArrayListExtra(
+                            CookingHomeActivity.EXTRA_SELECTED_RECIPE_IDS,
+                            ArrayList(recipeIds),
+                        ),
+                    )
+                }
+            }
+        }
     }
     companion object { private const val EXTRA_PLAN_ID = "plan_id"; fun intent(context: Context, planId: String) = Intent(context, CookingPlanDetailActivity::class.java).putExtra(EXTRA_PLAN_ID, planId) }
 }
@@ -209,8 +221,10 @@ private fun CookingPlanDetailScreen(
     planId: String,
     onBack: () -> Unit,
     onHome: () -> Unit,
+    onCookAgain: (List<String>) -> Unit,
 ) {
     var plan by remember { mutableStateOf<CookingPlanResponse?>(null) }
+    var execution by remember { mutableStateOf<CookingPlanExecutionResponse?>(null) }
     var taskProgress by remember { mutableStateOf<CookingPlanTaskResponse?>(null) }
     var cancelling by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -235,6 +249,11 @@ private fun CookingPlanDetailScreen(
                     refresh++
                 } else {
                     taskProgress = null
+                    if (it.status == "READY") {
+                        runCatching { client.cookingPlanExecution(planId) }
+                            .onSuccess { progress -> execution = progress }
+                            .onFailure { error = friendlyCookingError(it, "Could not load account-synchronised cooking progress.") }
+                    }
                 }
             }
             .onFailure { error = friendlyCookingError(it, "Could not load the plan.") }
@@ -249,17 +268,12 @@ private fun CookingPlanDetailScreen(
             }
             else -> {
                 val status = value.status
-                // Execution board — locally simulated (the backend contract has no
-                // /execution endpoint). Lane state advances on-device with an
-                // expectedEventId optimistic concurrency stub that maps to 409.
-                val timeline = value.timeline.sortedBy { it.startMinute }
-                val timelineKey = timeline.joinToString("|") { it.taskId }
-                val savedExecution = remember(planId, timelineKey) {
-                    CookingExecutionStore.load(context, planId, timeline.map { it.taskId })
+                val timeline = buildAndroidExecutionTimeline(value)
+                val boardStates = timeline.associate { task ->
+                    val remote = execution?.steps?.firstOrNull { it.stepId == task.taskId }?.status
+                    task.taskId to runCatching { remote?.let(BoardState::valueOf) }.getOrNull().let { it ?: BoardState.PENDING }
                 }
-                var boardStates by remember(planId, timelineKey) { mutableStateOf(savedExecution.states) }
-                var boardEventId by remember(planId, timelineKey) { mutableStateOf(savedExecution.eventId) }
-                val board = computeExecutionBoard(timeline, boardStates, boardEventId)
+                val board = computeExecutionBoard(timeline, boardStates, execution?.version?.toInt() ?: 0)
                 val total = timeline.size
                 val done = board.completed.size
                 var finishing by remember(planId) { mutableStateOf(false) }
@@ -303,6 +317,13 @@ private fun CookingPlanDetailScreen(
                                 if (value.reusedFromPlanId != null) {
                                     Text("This schedule was reused from your previous equivalent plan.", color = FoodMindMuted, fontSize = 12.sp)
                                 }
+                                AndroidSavedPlanControls(client, planId, execution, finished = true) { execution = it }
+                                OutlinedButton(
+                                    onClick = {
+                                        onCookAgain(cookAgainRecipeIds(value.sources))
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) { Text("Cook again") }
                                 Button(onClick = onHome, modifier = Modifier.fillMaxWidth()) { Text("Back to Home") }
                             } }
                         }
@@ -355,14 +376,19 @@ private fun CookingPlanDetailScreen(
                                     Toast.makeText(context, "EXECUTION_STATE_CONFLICT — the board moved elsewhere. Refreshing…", Toast.LENGTH_SHORT).show()
                                     return
                                 }
-                                val nextStates = boardStates + (taskId to next)
-                                val nextEventId = boardEventId + 1
-                                boardStates = nextStates
-                                boardEventId = nextEventId
-                                CookingExecutionStore.save(context, planId, nextStates, nextEventId)
+                                val current = execution ?: return
+                                scope.launch {
+                                    runCatching { client.updateCookingPlanExecution(planId, taskId, next.name, current.version) }
+                                        .onSuccess { execution = it }
+                                        .onFailure {
+                                            Toast.makeText(context, "Progress changed on another device. Loading the latest state…", Toast.LENGTH_SHORT).show()
+                                            runCatching { client.cookingPlanExecution(planId) }.onSuccess { execution = it }
+                                        }
+                                }
                             }
                             item {
                                 FoodMindSurfaceCard { Column(Modifier.padding(16.dp)) {
+                                    AndroidSavedPlanControls(client, planId, execution) { execution = it }
                                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                         Column(Modifier.weight(1f)) {
                                             Text("EXECUTION PROGRESS", color = FoodMindGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = .7.sp)
@@ -375,12 +401,14 @@ private fun CookingPlanDetailScreen(
                                         modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
                                     )
                                     if ((done > 0 || board.inProgress.isNotEmpty()) && done != total) TextButton(onClick = {
-                                        val reset = timeline.associate { it.taskId to BoardState.PENDING }
-                                        boardStates = reset
-                                        boardEventId = 0
-                                        CookingExecutionStore.save(context, planId, reset, 0)
-                                    }) { Text("Reset progress") }
-                                    Text("Progress is saved on this device. Inventory is deducted when you finish the plan.", color = FoodMindMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+                                        val current = execution ?: return@TextButton
+                                        scope.launch {
+                                            runCatching { client.resetCookingPlanExecution(planId, current.version) }
+                                                .onSuccess { execution = it }
+                                                .onFailure { Toast.makeText(context, "Progress changed on another device. Refresh and try again.", Toast.LENGTH_SHORT).show(); refresh++ }
+                                        }
+                                    }, enabled = execution != null) { Text("Reset progress") }
+                                    Text("Progress is saved to your FoodMind account and shared with Web. Inventory is deducted when you finish the plan.", color = FoodMindMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
                                     Button(
                                         onClick = {
                                             scope.launch {
@@ -388,14 +416,13 @@ private fun CookingPlanDetailScreen(
                                                 finishError = null
                                                 runCatching { client.finishCookingPlan(planId) }
                                                     .onSuccess { finished ->
-                                                        CookingExecutionStore.clear(context, planId)
                                                         plan = finished
                                                     }
                                                     .onFailure { finishError = friendlyCookingError(it, "Could not finish the plan. Refresh inventory or regenerate the plan.") }
                                                 finishing = false
                                             }
                                         },
-                                        enabled = canFinishCookingPlan(total, done, value.finishedAt) && !finishing,
+                                        enabled = execution != null && canFinishCookingPlan(total, done, value.finishedAt) && !finishing,
                                         modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
                                     ) { Text(if (finishing) "Finishing plan…" else "Finish plan") }
                                     finishError?.let { Text(it, color = FoodMindCoral, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)) }
@@ -630,51 +657,99 @@ private fun parsePurchasePreview(repairOptions: List<CookingRepairOptionResponse
         }
 }
 
-// ---------------------------------------------------------------------------
-// Execution board — locally simulated. The backend contract has no
-// /cooking-plans/{planId}/execution endpoint, so the lanes and the
-// expectedEventId optimistic concurrency (409 semantics) run on-device from
-// the plan timeline. Swap computeExecutionBoard for API calls when available.
-// ---------------------------------------------------------------------------
+@Composable
+private fun AndroidSavedPlanControls(
+    client: FoodMindApiClient,
+    planId: String,
+    execution: CookingPlanExecutionResponse?,
+    finished: Boolean = false,
+    onUpdated: (CookingPlanExecutionResponse) -> Unit,
+) {
+    var busy by remember(planId) { mutableStateOf(false) }
+    var actionError by remember(planId) { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    when {
+        execution == null -> Text("Loading saved state…", color = FoodMindMuted, fontSize = 11.sp)
+        execution.savedAt == null -> OutlinedButton(
+            onClick = {
+                scope.launch {
+                    busy = true; actionError = null
+                    runCatching { client.saveCookingPlan(planId) }
+                        .onSuccess(onUpdated)
+                        .onFailure { actionError = friendlyCookingError(it, "Could not save this cooking plan.") }
+                    busy = false
+                }
+            },
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        ) { Text(if (busy) "Saving…" else "Save plan") }
+        else -> Column(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+            Text("Saved to your FoodMind account", color = FoodMindGreen, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            TextButton(onClick = {
+                scope.launch {
+                    busy = true; actionError = null
+                    runCatching { client.removeSavedCookingPlan(planId, false) }
+                        .onSuccess(onUpdated)
+                        .onFailure { actionError = friendlyCookingError(it, "Could not remove this plan from Saved.") }
+                    busy = false
+                }
+            }, enabled = !busy) { Text("Remove from Saved") }
+            if (!finished) TextButton(onClick = {
+                scope.launch {
+                    busy = true; actionError = null
+                    runCatching { client.removeSavedCookingPlan(planId, true) }
+                        .onSuccess(onUpdated)
+                        .onFailure { actionError = friendlyCookingError(it, "Could not remove and reset this plan.") }
+                    busy = false
+                }
+            }, enabled = !busy) { Text("Remove & reset progress") }
+        }
+    }
+    actionError?.let { Text(it, color = FoodMindCoral, fontSize = 11.sp) }
+}
+
+private fun buildAndroidExecutionTimeline(plan: CookingPlanResponse): List<CookingTimelineTaskResponse> {
+    val scheduled = plan.timeline.sortedBy { it.startMinute }
+    fun normalise(value: String?): String = value.orEmpty()
+        .replace(Regex("^\\[(?:prep|mise en place)]\\s*", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+        .lowercase()
+    val missingPrep = plan.miseEnPlace.filter { item ->
+        val candidates = listOf(item.instruction, item.ingredient).map(::normalise).filter(String::isNotBlank)
+        val operation = normalise(item.operation)
+        val ingredient = normalise(item.ingredient)
+        scheduled.none { task ->
+            val text = normalise(task.instruction)
+            candidates.any { candidate -> candidate == text || (minOf(candidate.length, text.length) >= 24 && (candidate.contains(text) || text.contains(candidate))) } ||
+                (operation.length >= 3 && ingredient.length >= 3 && text.contains(operation) && text.contains(ingredient))
+        }
+    }.mapIndexed { index, item ->
+        val sequence = item.sequenceNo ?: index + 1
+        CookingTimelineTaskResponse(
+            taskId = "mise:$sequence",
+            startMinute = 0,
+            endMinute = item.durationMinutes ?: 0,
+            durationMinutes = item.durationMinutes ?: 0,
+            instruction = item.instruction,
+            dishId = "shared",
+            workMode = "ACTIVE",
+            category = "preparation",
+            resources = item.resources,
+        )
+    }
+    return (missingPrep + scheduled).sortedBy { it.startMinute }
+}
+
+// The plan shape is immutable; only these account-backed step states change.
 
 private enum class BoardState { PENDING, IN_PROGRESS, COMPLETED }
 
-private data class SavedCookingExecution(
-    val states: Map<String, BoardState>,
-    val eventId: Int,
-)
-
-/** Keeps the Web execution-board behavior after an Activity or app restart. */
-private object CookingExecutionStore {
-    private const val FILE = "foodmind_cooking_execution"
-
-    fun load(context: Context, planId: String, taskIds: List<String>): SavedCookingExecution {
-        val raw = context.getSharedPreferences(FILE, Context.MODE_PRIVATE).getString(planId, null)
-        val json = runCatching { raw?.let(::JSONObject) }.getOrNull()
-        val storedStates = json?.optJSONObject("states")
-        val states = taskIds.associateWith { taskId ->
-            runCatching { BoardState.valueOf(storedStates?.optString(taskId).orEmpty()) }
-                .getOrDefault(BoardState.PENDING)
-        }
-        return SavedCookingExecution(states, json?.optInt("eventId", 0) ?: 0)
-    }
-
-    fun save(context: Context, planId: String, states: Map<String, BoardState>, eventId: Int) {
-        val stateJson = JSONObject()
-        states.forEach { (taskId, state) -> stateJson.put(taskId, state.name) }
-        val json = JSONObject().put("eventId", eventId).put("states", stateJson)
-        context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
-            .putString(planId, json.toString())
-            .apply()
-    }
-
-    fun clear(context: Context, planId: String) {
-        context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().remove(planId).apply()
-    }
-}
-
 internal fun canFinishCookingPlan(total: Int, completed: Int, finishedAt: String?): Boolean =
     total > 0 && completed == total && finishedAt == null
+
+internal fun cookAgainRecipeIds(sources: List<CookingPlanSourceResponse>): List<String> =
+    sources.mapNotNull { it.sourceId?.takeIf(String::isNotBlank) }.distinct()
 
 private data class ExecutionBoard(
     val available: List<CookingTimelineTaskResponse>,

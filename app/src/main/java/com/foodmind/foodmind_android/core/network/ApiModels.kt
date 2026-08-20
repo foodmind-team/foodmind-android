@@ -232,6 +232,7 @@ data class FoodRecordResponse(
     val groupId: String? = null,
     val mediaAssetId: String? = null,
     val imageUrl: String? = null,
+    val canManage: Boolean = false,
     val createdAt: String = "",
     val updatedAt: String = "",
     val version: Long = 0,
@@ -282,6 +283,7 @@ data class DrinkRecordResponse(
     val rating: Double? = null, val comment: String? = null, val sweetnessLevel: Int? = null,
     val iceLevel: Int? = null, val wouldBuyAgain: Boolean? = null, val visibility: String = "PRIVATE",
     val groupId: String? = null, val mediaAssetId: String? = null, val imageUrl: String? = null,
+    val canManage: Boolean = false,
     val createdAt: String = "",
     val updatedAt: String = "", val version: Long = 0,
 )
@@ -735,8 +737,10 @@ data class QuestionAnswerRequest(
 
 data class CookingPlanSummary(
     val planId: String? = null, val status: String? = null,
-    val sourceCount: Int = 0, val taskCount: Int = 0, val makespanMinutes: Int? = null,
+    val sourceCount: Int = 0, val taskCount: Int = 0, val completedStepCount: Int = 0,
+    val makespanMinutes: Int? = null, val dishNames: List<String> = emptyList(),
     val createdAt: String? = null, val completedAt: String? = null,
+    val savedAt: String? = null, val finishedAt: String? = null,
 )
 data class CookingPlanHistoryResponse(
     val items: List<CookingPlanSummary> = emptyList(), val page: Int = 0, val size: Int = 20,
@@ -762,6 +766,26 @@ data class CookingPlanTaskResponse(
     val status: String? = null,
     val syncState: String? = null,
     val progress: CookingPlanTaskProgressResponse? = null,
+)
+
+data class CookingPlanExecutionUpdateRequest(
+    val stepId: String,
+    val status: String,
+    val expectedVersion: Long,
+)
+
+data class CookingPlanExecutionStepResponse(
+    val stepId: String,
+    val status: String,
+    val updatedAt: String? = null,
+)
+
+data class CookingPlanExecutionResponse(
+    val planId: String,
+    val savedAt: String? = null,
+    val finishedAt: String? = null,
+    val version: Long = 0,
+    val steps: List<CookingPlanExecutionStepResponse> = emptyList(),
 )
 
 data class CreateMediaUploadRequest(val contentType: String, val byteSize: Long, val checksumSha256: String)

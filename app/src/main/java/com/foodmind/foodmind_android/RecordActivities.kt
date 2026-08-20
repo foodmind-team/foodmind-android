@@ -53,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -69,6 +70,7 @@ import com.foodmind.foodmind_android.domain.repository.MediaUploadRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import java.io.File
 import java.time.Instant
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -141,6 +143,7 @@ private data class RecordFormSeed(
     val sweetness: String = "", val ice: String = "", val groupId: String = "", val mediaAssetId: String? = null,
     val version: Long = 0,
     val imageUrl: String? = null,
+    val canManage: Boolean = false,
 )
 
 private fun DrinkRecordResponse.toFormSeed() = RecordFormSeed(
@@ -159,6 +162,7 @@ private fun DrinkRecordResponse.toFormSeed() = RecordFormSeed(
     mediaAssetId = mediaAssetId,
     version = version,
     imageUrl = imageUrl,
+    canManage = canManage,
 )
 
 private fun FoodRecordResponse.toFormSeed() = RecordFormSeed(
@@ -175,6 +179,7 @@ private fun FoodRecordResponse.toFormSeed() = RecordFormSeed(
     mediaAssetId = mediaAssetId,
     version = version,
     imageUrl = imageUrl,
+    canManage = canManage,
 )
 
 internal data class FoodRecordPrefill(
@@ -248,14 +253,22 @@ private fun RecordEditorScreen(
     onBack: () -> Unit,
     contentResolver: android.content.ContentResolver,
 ) {
+    val context = LocalContext.current
     var seed by remember { mutableStateOf<RecordFormSeed?>(if (id == null) RecordFormSeed() else null) }
     var name by remember(prefill) { mutableStateOf(prefill?.mealName.orEmpty()) }; var place by remember(prefill) { mutableStateOf(prefill?.placeName.orEmpty()) }; var occurredAt by remember { mutableStateOf(formatFoodMindTimestampForEditor(Instant.now().toString())) }
     var price by remember(prefill) { mutableStateOf(prefill?.price.orEmpty()) }; var currency by remember(prefill) { mutableStateOf(prefill?.currency ?: "SGD") }; var rating by remember { mutableStateOf("") }
     var comment by remember { mutableStateOf("") }; var visibility by remember { mutableStateOf("PRIVATE") }; var repeat by remember { mutableStateOf<Boolean?>(null) }
     var sweetness by remember { mutableStateOf("") }; var ice by remember { mutableStateOf("") }; var groupId by remember { mutableStateOf("") }
     var mediaAssetId by remember { mutableStateOf<String?>(null) }; var selectedImage by remember { mutableStateOf<Uri?>(null) }
+    var pendingCameraImage by remember { mutableStateOf<PendingCameraImage?>(null) }
+    var capturedCameraFile by remember { mutableStateOf<File?>(null) }
+    var showImageSourceDialog by remember { mutableStateOf(false) }
     var imageUrl by remember { mutableStateOf<String?>(null) }
     var originalMediaAssetId by remember { mutableStateOf<String?>(null) }
+    var groups by remember { mutableStateOf(emptyList<com.foodmind.foodmind_android.core.network.GroupResponse>()) }
+    var groupsLoading by remember { mutableStateOf(true) }
+    var groupsError by remember { mutableStateOf<String?>(null) }
+    var groupsRefresh by remember { mutableIntStateOf(0) }
     var saving by remember { mutableStateOf(false) }; var error by remember { mutableStateOf<String?>(null) }
     var version by remember { mutableStateOf(0L) }
     val recommendedMealId = prefill?.mealId
@@ -263,7 +276,32 @@ private fun RecordEditorScreen(
     val recommendationSessionId = prefill?.recommendationSessionId
     val recommendationCandidateId = prefill?.recommendationCandidateId
     val scope = rememberCoroutineScope()
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { selectedImage = it } }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            capturedCameraFile?.delete()
+            capturedCameraFile = null
+            selectedImage = it
+        }
+    }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
+        val pending = pendingCameraImage
+        if (saved && pending != null) {
+            capturedCameraFile?.delete()
+            capturedCameraFile = pending.file
+            selectedImage = pending.uri
+        } else {
+            pending?.file?.delete()
+        }
+        pendingCameraImage = null
+    }
+    val recordGroups = remember(groups) { selectableRecordGroups(groups) }
+    LaunchedEffect(groupsRefresh) {
+        groupsLoading = true
+        runCatching { client.groups() }
+            .onSuccess { groups = it; groupsError = null }
+            .onFailure { groupsError = "Could not load your groups." }
+        groupsLoading = false
+    }
     LaunchedEffect(id) {
         if (id != null) runCatching {
             if (type == "DRINK") client.drinkRecord(id).toFormSeed()
@@ -283,7 +321,28 @@ private fun RecordEditorScreen(
             item { OutlinedTextField(rating, { rating = it }, label = { Text("Rating") }, modifier = Modifier.fillMaxWidth()) }
             if (type == "DRINK") item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(sweetness, { sweetness = it.filter(Char::isDigit) }, label = { Text("Sweetness") }, modifier = Modifier.weight(1f)); OutlinedTextField(ice, { ice = it.filter(Char::isDigit) }, label = { Text("Ice level") }, modifier = Modifier.weight(1f)) } }
             item { OutlinedTextField(comment, { comment = it }, label = { Text("Comment") }, minLines = 3, modifier = Modifier.fillMaxWidth()) }
-            item { Text("Visibility", fontWeight = FontWeight.Bold); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("PRIVATE", "GROUP").forEach { FilterChip(visibility == it, { visibility = it }, label = { Text(if (it == "PRIVATE") "Only me" else "Groups") }) } }; if (visibility == "GROUP") OutlinedTextField(groupId, { groupId = it }, label = { Text("Group ID") }, modifier = Modifier.fillMaxWidth()) }
+            item {
+                Text("Visibility", fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("PRIVATE", "GROUP").forEach { option ->
+                        FilterChip(
+                            selected = visibility == option,
+                            onClick = { visibility = option },
+                            label = { Text(if (option == "PRIVATE") "Only me" else "Groups") },
+                        )
+                    }
+                }
+                if (visibility == "GROUP") {
+                    RecordGroupPicker(
+                        groups = groups,
+                        selectedGroupId = groupId,
+                        loading = groupsLoading,
+                        error = groupsError,
+                        onGroupSelected = { groupId = it },
+                        onRetry = { groupsRefresh++ },
+                    )
+                }
+            }
             item { Text(if (type == "DRINK") "Would buy again?" else "Would eat again?", fontWeight = FontWeight.Bold); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(true to "Yes", false to "No").forEach { (value, label) -> FilterChip(repeat == value, { repeat = value }, label = { Text(label) }) } } }
             item {
                 if (selectedImage != null || mediaAssetId != null || imageUrl != null) {
@@ -298,7 +357,13 @@ private fun RecordEditorScreen(
                             emptyLabel = "Image unavailable",
                         )
                         IconButton(
-                            onClick = { selectedImage = null; mediaAssetId = null; imageUrl = null },
+                            onClick = {
+                                capturedCameraFile?.delete()
+                                capturedCameraFile = null
+                                selectedImage = null
+                                mediaAssetId = null
+                                imageUrl = null
+                            },
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 .padding(8.dp)
@@ -309,7 +374,7 @@ private fun RecordEditorScreen(
                         }
                     }
                 }
-                OutlinedButton(onClick = { picker.launch("image/*") }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.AddAPhoto, null); Text(if (selectedImage != null) "New image selected" else if (mediaAssetId != null) "Replace uploaded image" else "Add image", modifier = Modifier.padding(start = 8.dp)) }
+                OutlinedButton(onClick = { showImageSourceDialog = true }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.AddAPhoto, null); Text(if (selectedImage != null) "New image selected" else if (mediaAssetId != null) "Replace uploaded image" else "Add image", modifier = Modifier.padding(start = 8.dp)) }
             }
             item {
                 error?.let { Text(it, color = FoodMindCoral) }
@@ -317,18 +382,24 @@ private fun RecordEditorScreen(
                     onClick = { scope.launch {
                         if (name.isBlank()) { error = "Enter a name."; return@launch }
                         val occurredAtIso = normaliseFoodMindTimestamp(occurredAt) ?: run { error = "Enter a valid local date and time."; return@launch }
+                        val submission = prepareRecordSubmission(price, currency, rating, visibility, groupId)
+                            .getOrElse { failure -> error = failure.message ?: "Check the record fields."; return@launch }
+                        if (submission.groupId != null && recordGroups.none { it.id == submission.groupId }) {
+                            error = "Choose one of your active groups."
+                            return@launch
+                        }
                         saving = true; error = null
                         var newlyUploadedId: String? = null
                         var createdFoodRecord: FoodRecordResponse? = null
                         runCatching {
                             val uploadedId = selectedImage?.let { MediaUploadRepository(client).upload(contentResolver, it).also { id -> newlyUploadedId = id } } ?: mediaAssetId
                             if (type == "DRINK") {
-                                val request = if (id == null) CreateDrinkRecordRequest(name.trim(), shopNameSnapshot = place.trim(), occurredAt = occurredAtIso, price = price.toDoubleOrNull(), currency = currency, rating = rating.toDoubleOrNull(), comment = comment.ifBlank { null }, sweetnessLevel = sweetness.toIntOrNull(), iceLevel = ice.toIntOrNull(), wouldBuyAgain = repeat, visibility = visibility, groupId = groupId.ifBlank { null }, mediaAssetId = uploadedId)
-                                else UpdateDrinkRecordRequest(drinkName = name.trim(), shopNameSnapshot = place.trim(), occurredAt = occurredAtIso, price = price.toDoubleOrNull(), currency = currency, rating = rating.toDoubleOrNull(), comment = comment.ifBlank { null }, sweetnessLevel = sweetness.toIntOrNull(), iceLevel = ice.toIntOrNull(), wouldBuyAgain = repeat, visibility = visibility, groupId = groupId.ifBlank { null }, mediaAssetId = uploadedId)
+                                val request = if (id == null) CreateDrinkRecordRequest(name.trim(), shopNameSnapshot = place.trim(), occurredAt = occurredAtIso, price = submission.price, currency = submission.currency, rating = submission.rating, comment = comment.ifBlank { null }, sweetnessLevel = sweetness.toIntOrNull(), iceLevel = ice.toIntOrNull(), wouldBuyAgain = repeat, visibility = visibility, groupId = submission.groupId, mediaAssetId = uploadedId)
+                                else UpdateDrinkRecordRequest(drinkName = name.trim(), shopNameSnapshot = place.trim(), occurredAt = occurredAtIso, price = submission.price, currency = submission.currency, rating = submission.rating, comment = comment.ifBlank { null }, sweetnessLevel = sweetness.toIntOrNull(), iceLevel = ice.toIntOrNull(), wouldBuyAgain = repeat, visibility = visibility, groupId = submission.groupId, mediaAssetId = uploadedId)
                                 if (id == null) client.createDrinkRecord(request as CreateDrinkRecordRequest) else client.updateDrinkRecord(id, version, request as UpdateDrinkRecordRequest)
                             } else {
-                                val request = if (id == null) CreateFoodRecordRequest(mealId = recommendedMealId, mealNameSnapshot = name.trim(), placeId = recommendedPlaceId, placeNameSnapshot = place.trim().ifBlank { null }, occurredAt = occurredAtIso, price = price.toDoubleOrNull(), currency = currency, rating = rating.toDoubleOrNull(), comment = comment.ifBlank { null }, wouldEatAgain = repeat, visibility = visibility, groupId = groupId.ifBlank { null }, mediaAssetId = uploadedId)
-                                else UpdateFoodRecordRequest(mealNameSnapshot = name.trim(), placeNameSnapshot = place.trim().ifBlank { null }, occurredAt = occurredAtIso, price = price.toDoubleOrNull(), currency = currency, rating = rating.toDoubleOrNull(), comment = comment.ifBlank { null }, wouldEatAgain = repeat, visibility = visibility, groupId = groupId.ifBlank { null }, mediaAssetId = uploadedId)
+                                val request = if (id == null) CreateFoodRecordRequest(mealId = recommendedMealId, mealNameSnapshot = name.trim(), placeId = recommendedPlaceId, placeNameSnapshot = place.trim().ifBlank { null }, occurredAt = occurredAtIso, price = submission.price, currency = submission.currency, rating = submission.rating, comment = comment.ifBlank { null }, wouldEatAgain = repeat, visibility = visibility, groupId = submission.groupId, mediaAssetId = uploadedId)
+                                else UpdateFoodRecordRequest(mealNameSnapshot = name.trim(), placeNameSnapshot = place.trim().ifBlank { null }, occurredAt = occurredAtIso, price = submission.price, currency = submission.currency, rating = submission.rating, comment = comment.ifBlank { null }, wouldEatAgain = repeat, visibility = visibility, groupId = submission.groupId, mediaAssetId = uploadedId)
                                 if (id == null) {
                                     createdFoodRecord = client.createFoodRecord(request as CreateFoodRecordRequest)
                                 } else {
@@ -337,6 +408,8 @@ private fun RecordEditorScreen(
                             }
                             originalMediaAssetId?.takeIf { it != uploadedId }?.let { runCatching { client.deleteMediaAsset(it) } }
                         }.onSuccess {
+                            capturedCameraFile?.delete()
+                            capturedCameraFile = null
                             createdFoodRecord?.takeIf { recommendationSessionId != null && recommendationCandidateId != null }?.let { record ->
                                 scope.launch {
                                     record.rating?.let { score -> runCatching { client.submitRecommendationFeedback(recommendationSessionId!!, RecommendationFeedbackRequest(recommendationCandidateId, "LATER_RATED", rating = score, resultingFoodRecordId = record.id)) } }
@@ -346,13 +419,31 @@ private fun RecordEditorScreen(
                             onBack()
                         }.onFailure {
                             newlyUploadedId?.let { uploaded -> runCatching { client.deleteMediaAsset(uploaded) } }
-                            error = it.message ?: "Could not save. Check your input."
+                            error = it.toRecordSaveMessage()
                         }
                         saving = false
                     } }, enabled = !saving, modifier = Modifier.fillMaxWidth(),
                 ) { Text(if (saving) "Saving…" else "Save record") }
             }
         }
+    }
+    if (showImageSourceDialog) {
+        RecordImageSourceDialog(
+            onDismiss = { showImageSourceDialog = false },
+            onTakePhoto = {
+                showImageSourceDialog = false
+                runCatching { createPendingCameraImage(context) }
+                    .onSuccess { pending ->
+                        pendingCameraImage = pending
+                        camera.launch(pending.uri)
+                    }
+                    .onFailure { error = "Could not open the camera." }
+            },
+            onChooseFromGallery = {
+                showImageSourceDialog = false
+                picker.launch("image/*")
+            },
+        )
     }
 }
 
@@ -402,7 +493,12 @@ private fun RecordDetailScreen(
     var seed by remember { mutableStateOf<RecordFormSeed?>(null) }; var error by remember { mutableStateOf<String?>(null) }; var refresh by remember { mutableIntStateOf(0) }; val scope = rememberCoroutineScope()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh++ }
     LaunchedEffect(id, refresh) { runCatching { if (type == "DRINK") client.drinkRecord(id).toFormSeed() else client.foodRecord(id).toFormSeed() }.onSuccess { seed = it; error = null }.onFailure { error = "Could not load records." } }
-    FoodMindDetailScaffold("Record details", onBack, actions = { IconButton(onClick = onEdit) { Icon(Icons.Outlined.Edit, "Edit") }; IconButton(onClick = { scope.launch { runCatching { if (type == "DRINK") client.deleteDrinkRecord(id) else client.deleteFoodRecord(id); seed?.mediaAssetId?.let { runCatching { client.deleteMediaAsset(it) } } }.onSuccess { onDeleted() }.onFailure { error = "Could not delete the record." } } }) { Icon(Icons.Outlined.DeleteOutline, "Delete") } }) { padding ->
+    FoodMindDetailScaffold("Record details", onBack, actions = {
+        if (seed?.canManage == true) {
+            IconButton(onClick = onEdit) { Icon(Icons.Outlined.Edit, "Edit") }
+            IconButton(onClick = { scope.launch { runCatching { if (type == "DRINK") client.deleteDrinkRecord(id) else client.deleteFoodRecord(id); seed?.mediaAssetId?.let { runCatching { client.deleteMediaAsset(it) } } }.onSuccess { onDeleted() }.onFailure { error = "Could not delete the record." } } }) { Icon(Icons.Outlined.DeleteOutline, "Delete") }
+        }
+    }) { padding ->
         val data = seed
         if (data == null) Column(Modifier.padding(padding).padding(24.dp)) { if (error == null) CircularProgressIndicator() else Text(error!!, color = FoodMindCoral) }
         else LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -425,6 +521,9 @@ private fun RecordDetailScreen(
                         .clip(RoundedCornerShape(14.dp)),
                     emptyLabel = "Image unavailable",
                 )
+            }
+            if (!data.canManage) item {
+                Text("This group record is read-only. Only its owner can edit or delete it or its image.", color = FoodMindMuted)
             }
             error?.let { item { Text(it, color = FoodMindCoral) } }
         }
