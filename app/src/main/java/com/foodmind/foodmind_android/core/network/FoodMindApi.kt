@@ -300,6 +300,33 @@ interface FoodMindApi {
     @GET("cooking-plans/history")
     suspend fun cookingPlanHistory(@Query("page") page: Int = 0, @Query("size") size: Int = 20): CookingPlanHistoryResponse
 
+    @GET("cooking-plans/saved")
+    suspend fun savedCookingPlans(@Query("page") page: Int = 0, @Query("size") size: Int = 50): CookingPlanHistoryResponse
+
+    @GET("cooking-plans/{planId}/execution")
+    suspend fun cookingPlanExecution(@Path("planId") planId: String): CookingPlanExecutionResponse
+
+    @PATCH("cooking-plans/{planId}/execution")
+    suspend fun updateCookingPlanExecution(
+        @Path("planId") planId: String,
+        @Body request: CookingPlanExecutionUpdateRequest,
+    ): CookingPlanExecutionResponse
+
+    @POST("cooking-plans/{planId}/execution/reset")
+    suspend fun resetCookingPlanExecution(
+        @Path("planId") planId: String,
+        @Query("expectedVersion") expectedVersion: Long,
+    ): CookingPlanExecutionResponse
+
+    @PUT("cooking-plans/{planId}/saved")
+    suspend fun saveCookingPlan(@Path("planId") planId: String): CookingPlanExecutionResponse
+
+    @DELETE("cooking-plans/{planId}/saved")
+    suspend fun removeSavedCookingPlan(
+        @Path("planId") planId: String,
+        @Query("resetProgress") resetProgress: Boolean = false,
+    ): CookingPlanExecutionResponse
+
     @POST("cooking-plans/generate-async")
     suspend fun generateCookingPlanAsync(
         @Header("Idempotency-Key") idempotencyKey: String,
