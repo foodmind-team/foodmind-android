@@ -9,9 +9,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -284,18 +287,29 @@ private fun RecordEditorScreen(
             item { Text(if (type == "DRINK") "Would buy again?" else "Would eat again?", fontWeight = FontWeight.Bold); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(true to "Yes", false to "No").forEach { (value, label) -> FilterChip(repeat == value, { repeat = value }, label = { Text(label) }) } } }
             item {
                 if (selectedImage != null || mediaAssetId != null || imageUrl != null) {
-                    AuthorisedImage(
-                        model = selectedImage ?: imageUrl,
-                        contentDescription = "Selected record image",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(4f / 3f)
-                            .clip(RoundedCornerShape(14.dp)),
-                        emptyLabel = "Image unavailable",
-                    )
+                    Box {
+                        AuthorisedImage(
+                            model = selectedImage ?: imageUrl,
+                            contentDescription = "Selected record image",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(4f / 3f)
+                                .clip(RoundedCornerShape(14.dp)),
+                            emptyLabel = "Image unavailable",
+                        )
+                        IconButton(
+                            onClick = { selectedImage = null; mediaAssetId = null; imageUrl = null },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.92f)),
+                        ) {
+                            Icon(Icons.Outlined.DeleteOutline, contentDescription = "Remove image", tint = FoodMindCoral)
+                        }
+                    }
                 }
                 OutlinedButton(onClick = { picker.launch("image/*") }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.AddAPhoto, null); Text(if (selectedImage != null) "New image selected" else if (mediaAssetId != null) "Replace uploaded image" else "Add image", modifier = Modifier.padding(start = 8.dp)) }
-                if (mediaAssetId != null || selectedImage != null) TextButton(onClick = { selectedImage = null; mediaAssetId = null; imageUrl = null }) { Text("Remove image") }
             }
             item {
                 error?.let { Text(it, color = FoodMindCoral) }

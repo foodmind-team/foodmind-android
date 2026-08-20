@@ -1,7 +1,11 @@
 package com.foodmind.foodmind_android.domain.repository
 
 import android.content.ContentResolver
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import com.foodmind.foodmind_android.core.network.CreateMediaUploadRequest
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
 import com.foodmind.foodmind_android.core.network.MediaAssetResponse
@@ -15,12 +19,39 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
 import java.security.MessageDigest
 
 internal interface MediaUploadClient {
     suspend fun createMediaUpload(request: CreateMediaUploadRequest): MediaUploadInstructionResponse
     suspend fun finaliseMediaUpload(mediaAssetId: String): MediaAssetResponse
     suspend fun deleteMediaAsset(mediaAssetId: String)
+}
+
+internal interface ImageTranscoder {
+    fun transcodeToJpeg(bytes: ByteArray): ByteArray?
+}
+
+private object AndroidImageTranscoder : ImageTranscoder {
+    override fun transcodeToJpeg(bytes: ByteArray): ByteArray? {
+        val bitmap = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(bytes))) { decoder, _, _ ->
+                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                }
+            } else {
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            }
+        } catch (_: Exception) {
+            null
+        } ?: return null
+
+        return ByteArrayOutputStream().use { output ->
+            if (bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, output)) output.toByteArray() else null
+        }
+    }
+
+    private const val JPEG_QUALITY = 92
 }
 
 private class FoodMindMediaUploadClient(
@@ -34,6 +65,7 @@ private class FoodMindMediaUploadClient(
 class MediaUploadRepository internal constructor(
     private val client: MediaUploadClient,
     private val http: OkHttpClient = OkHttpClient(),
+    private val imageTranscoder: ImageTranscoder = AndroidImageTranscoder,
 ) {
     constructor(
         client: FoodMindApiClient,
@@ -42,20 +74,20 @@ class MediaUploadRepository internal constructor(
 
     suspend fun upload(contentResolver: ContentResolver, uri: Uri): String = withContext(Dispatchers.IO) {
         val contentType = contentResolver.getType(uri)?.lowercase()
-            ?: throw MediaUploadException("Could not determine the selected image type.")
         val bytes = contentResolver.openInputStream(uri)?.use(::readImageBytes)
             ?: throw MediaUploadException("Could not read the selected image.")
         upload(bytes, contentType)
     }
 
-    internal suspend fun upload(bytes: ByteArray, contentType: String): String = withContext(Dispatchers.IO) {
-        validateImage(bytes, contentType)
+    internal suspend fun upload(bytes: ByteArray, contentType: String?): String = withContext(Dispatchers.IO) {
+        val normalised = normaliseImageForUpload(bytes, contentType)
+        validateImage(normalised.bytes, normalised.contentType)
         val checksum = MessageDigest.getInstance("SHA-256")
-            .digest(bytes)
+            .digest(normalised.bytes)
             .joinToString("") { "%02x".format(it) }
         val instruction = try {
             client.createMediaUpload(
-                CreateMediaUploadRequest(contentType, bytes.size.toLong(), checksum),
+                CreateMediaUploadRequest(normalised.contentType, normalised.bytes.size.toLong(), checksum),
             )
         } catch (failure: CancellationException) {
             throw failure
@@ -66,7 +98,7 @@ class MediaUploadRepository internal constructor(
         try {
             val request = Request.Builder()
                 .url(instruction.uploadUrl)
-                .put(bytes.toRequestBody(contentType.toMediaType()))
+                .put(normalised.bytes.toRequestBody(normalised.contentType.toMediaType()))
                 .apply {
                     instruction.requiredHeaders
                         .filterKeys { name -> name.lowercase() !in FORBIDDEN_SIGNED_UPLOAD_HEADERS }
@@ -96,15 +128,20 @@ class MediaUploadRepository internal constructor(
     private fun readImageBytes(input: java.io.InputStream): ByteArray {
         val output = ByteArrayOutputStream()
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-        var total = 0
         while (true) {
             val read = input.read(buffer)
             if (read < 0) break
-            total += read
-            if (total > MAX_BYTES) throw MediaUploadException("Images must be 5 MB or smaller.")
             output.write(buffer, 0, read)
         }
         return output.toByteArray()
+    }
+
+    private fun normaliseImageForUpload(bytes: ByteArray, contentType: String?): NormalisedImage {
+        val type = contentType?.lowercase()
+        if (type in ALLOWED_TYPES) return NormalisedImage(bytes, type!!)
+        val transcoded = imageTranscoder.transcodeToJpeg(bytes)
+            ?: throw MediaUploadException("Choose an image that can be converted to JPEG.")
+        return NormalisedImage(transcoded, JPEG_CONTENT_TYPE)
     }
 
     private fun validateImage(bytes: ByteArray, contentType: String) {
@@ -121,10 +158,16 @@ class MediaUploadRepository internal constructor(
 
     private companion object {
         const val MAX_BYTES = 5 * 1024 * 1024
+        const val JPEG_CONTENT_TYPE = "image/jpeg"
         val ALLOWED_TYPES = setOf("image/jpeg", "image/png", "image/webp")
         val FORBIDDEN_SIGNED_UPLOAD_HEADERS = setOf("authorization", "content-length")
     }
 }
+
+private data class NormalisedImage(
+    val bytes: ByteArray,
+    val contentType: String,
+)
 
 class MediaUploadException(
     message: String,
