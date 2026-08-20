@@ -294,6 +294,9 @@ interface FoodMindApi {
     @GET("cooking-plans/{planId}")
     suspend fun cookingPlan(@Path("planId") planId: String): CookingPlanResponse
 
+    @POST("cooking-plans/{planId}/finish")
+    suspend fun finishCookingPlan(@Path("planId") planId: String): CookingPlanResponse
+
     @GET("cooking-plans/history")
     suspend fun cookingPlanHistory(@Query("page") page: Int = 0, @Query("size") size: Int = 20): CookingPlanHistoryResponse
 

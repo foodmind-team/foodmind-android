@@ -602,6 +602,8 @@ data class CookingPlanResponse(
     val region: String? = null,
     val createdAt: String? = null,
     val completedAt: String? = null,
+    val finishedAt: String? = null,
+    val reusedFromPlanId: String? = null,
     val solverStatus: String? = null,
     val makespanMinutes: Int? = null,
     val errorCode: String? = null,

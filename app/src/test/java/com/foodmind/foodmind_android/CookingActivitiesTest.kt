@@ -47,4 +47,11 @@ class CookingActivitiesTest {
         assertTrue(canSubmitCookingQuestions(listOf(textQuestion), emptyMap(), emptyMap()))
         assertEquals("2", buildCookingQuestionAnswers(listOf(textQuestion), emptyMap(), emptyMap()).single().value)
     }
+
+    @Test
+    fun finishRequiresEveryStepAndAnUnfinishedBackendPlan() {
+        assertFalse(canFinishCookingPlan(total = 3, completed = 2, finishedAt = null))
+        assertTrue(canFinishCookingPlan(total = 3, completed = 3, finishedAt = null))
+        assertFalse(canFinishCookingPlan(total = 3, completed = 3, finishedAt = "2026-08-20T14:00:00Z"))
+    }
 }
