@@ -2,6 +2,15 @@
 
 FoodMind Android is the native mobile client for FoodMind. It provides the same public capabilities and Backend-owned validation semantics as the Web client through Kotlin, Jetpack Compose, Retrofit, and OkHttp.
 
+## Live deployment
+
+The deployed FoodMind Web application is available at [https://13.229.2.154.sslip.io/](https://13.229.2.154.sslip.io/). To build Android against the same HTTPS deployment for a physical device, use:
+
+```bash
+./gradlew --no-daemon assembleDebug \
+  -Pfoodmind.debugApiBaseUrl=https://13.229.2.154.sslip.io/api/v1/
+```
+
 ## Features
 
 - Sign-in, profile, preferences, records, history, trusted groups, and Explore
