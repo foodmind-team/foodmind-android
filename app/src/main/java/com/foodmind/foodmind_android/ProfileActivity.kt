@@ -299,6 +299,7 @@ private fun PreferencesScreen(client: FoodMindApiClient, onBack: () -> Unit) {
     var meals by remember { mutableStateOf(setOf<String>()) }
     var error by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
+    var saved by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
         runCatching { coroutineScope { val preferences = async { client.preferences() }; val references = async { client.referenceData() }; preferences.await() to references.await() } }
@@ -371,9 +372,9 @@ private fun PreferencesScreen(client: FoodMindApiClient, onBack: () -> Unit) {
             }
             item { Text("Cleanliness evidence", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold); Text("These are decision-support signals and do not mean FoodMind has inspected or certified a kitchen.", color = FoodMindMuted) }
             item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(cleanlinessPriority, { cleanlinessPriority = it.filter(Char::isDigit) }, label = { Text("Evidence priority 0–5") }, modifier = Modifier.weight(1f)); OutlinedTextField(cleanlinessScore, { cleanlinessScore = it }, label = { Text("Minimum evidence score") }, modifier = Modifier.weight(1f)) } }
-            item { error?.let { Text(it, color = FoodMindCoral) }; Button(
+            item { error?.let { Text(it, color = FoodMindCoral) }; if (saved) Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF6F0)), modifier = Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text("Preferences saved to FoodMind", color = FoodMindGreen, fontWeight = FontWeight.ExtraBold); Text("Your Android update is now available to Web and future recommendations. Open Web Preferences and select Refresh from FoodMind to verify it live.", color = FoodMindMuted) } }; Button(
                 onClick = { scope.launch {
-                    saving = true
+                    saving = true; saved = false
                     val request = ReplacePreferencesRequest(
                         budgetMin = budgetMin.toDoubleOrNull(), budgetMax = budgetMax.toDoubleOrNull(), currency = currency,
                         spiceTolerance = spice.toIntOrNull(), preferredArea = null, maxDistanceKm = if (latitude != null && longitude != null) distance.toDoubleOrNull() else null,
@@ -385,10 +386,10 @@ private fun PreferencesScreen(client: FoodMindApiClient, onBack: () -> Unit) {
                         allergens = allergens.map { AllergenPreferenceRequest(it, allergenSeverity[it] ?: "MODERATE") }, preferredMealTypes = meals.toList(),
                         preferredLatitude = latitude, preferredLongitude = longitude,
                     )
-                    runCatching { client.replacePreferences(request) }.onSuccess { onBack() }.onFailure { error = "Could not save. Check your input." }
+                    runCatching { client.replacePreferences(request) }.onSuccess { updated -> value = updated; error = null; saved = true }.onFailure { error = "Could not save. Check your input." }
                     saving = false
                 } }, enabled = !saving, modifier = Modifier.fillMaxWidth(),
-            ) { Text(if (saving) "Saving…" else "Save preferences") } }
+            ) { Text(if (saving) "Saving…" else if (saved) "Saved to FoodMind" else "Save preferences") }; if (saved) TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Done") } }
         }
     }
 }
