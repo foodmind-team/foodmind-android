@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.foodmind.foodmind_android.core.network.FoodMindApiClient
+import com.foodmind.foodmind_android.core.network.CookingPlanSummary
 import com.foodmind.foodmind_android.core.network.UserRecipeResponse
 import com.foodmind.foodmind_android.core.network.WantToTryResponse
 import kotlinx.coroutines.launch
@@ -65,6 +66,7 @@ class SavedActivity : ComponentActivity() {
                     onAddRecipe = { startActivity(Intent(this, RecipeEditorActivity::class.java)) },
                     onEditRecipe = { startActivity(RecipeEditorActivity.intent(this, it)) },
                     onCook = { startActivity(Intent(this, CookingHomeActivity::class.java)) },
+                    onOpenCookingPlan = { startActivity(CookingPlanDetailActivity.intent(this, it)) },
                     onOpenSource = { type, id -> startActivity(CatalogueDetailActivity.intent(this, type, id)) },
                 )
             }
@@ -79,11 +81,13 @@ private fun SavedScreen(
     onAddRecipe: () -> Unit,
     onEditRecipe: (String) -> Unit,
     onCook: () -> Unit,
+    onOpenCookingPlan: (String) -> Unit,
     onOpenSource: (String, String) -> Unit,
 ) {
     var tab by remember { mutableIntStateOf(0) }
     var saved by remember { mutableStateOf<List<WantToTryResponse>>(emptyList()) }
     var recipes by remember { mutableStateOf<List<UserRecipeResponse>>(emptyList()) }
+    var cookingPlans by remember { mutableStateOf<List<CookingPlanSummary>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var refreshKey by remember { mutableIntStateOf(0) }
@@ -98,6 +102,9 @@ private fun SavedScreen(
         runCatching { client.recipes().items }
             .onSuccess { recipes = it }
             .onFailure { error = "Could not load your cloud recipes." }
+        runCatching { client.savedCookingPlans().items }
+            .onSuccess { cookingPlans = it }
+            .onFailure { error = "Could not load your saved cooking plans." }
         loading = false
     }
 
@@ -113,6 +120,7 @@ private fun SavedScreen(
             PrimaryTabRow(selectedTabIndex = tab, containerColor = FoodMindSurface, contentColor = FoodMindLime) {
                 Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Want to Try ${saved.size}", fontWeight = FontWeight.Bold) })
                 Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Cloud recipes ${recipes.size}", fontWeight = FontWeight.Bold) })
+                Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("Cooking Plans ${cookingPlans.size}", fontWeight = FontWeight.Bold) })
             }
             when {
                 loading -> CircularProgressIndicator(Modifier.padding(24.dp))
@@ -128,7 +136,7 @@ private fun SavedScreen(
                         scope.launch { runCatching { client.deleteWantToTry(item.id) }.onFailure { error = "Could not remove this item. Refresh and try again." } }
                     },
                 )
-                else -> CloudRecipes(
+                tab == 1 -> CloudRecipes(
                     items = recipes,
                     onAdd = onAddRecipe,
                     onCook = onCook,
@@ -141,6 +149,45 @@ private fun SavedScreen(
                         }
                     },
                 )
+                else -> SavedCookingPlans(cookingPlans, onOpenCookingPlan)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SavedCookingPlans(items: List<CookingPlanSummary>, onOpen: (String) -> Unit) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            Text("Continue where you left off", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold, color = FoodMindInk)
+            Text("Cooking steps and completion state are stored in your FoodMind account and shared with Web.", color = FoodMindMuted)
+        }
+        if (items.isEmpty()) item {
+            FoodMindSurfaceCard { Text("No saved cooking plans yet. Open a generated plan and select Save plan.") }
+        }
+        items(items, key = { it.planId.orEmpty() }) { plan ->
+            Card(
+                onClick = { plan.planId?.let(onOpen) },
+                colors = CardDefaults.cardColors(containerColor = FoodMindSurface),
+                border = BorderStroke(1.dp, FoodMindLine),
+            ) {
+                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(if (plan.finishedAt != null) "COMPLETED" else "IN PROGRESS", color = FoodMindGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(plan.dishNames.joinToString(" · ").ifBlank { "${plan.sourceCount} dish cooking plan" }, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (plan.finishedAt != null) "Completed ${formatFoodMindTimestamp(plan.finishedAt)}"
+                            else "${plan.completedStepCount} of ${plan.taskCount} scheduled steps completed",
+                            color = FoodMindMuted,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    Icon(Icons.Outlined.ChevronRight, null, tint = FoodMindMuted)
+                }
             }
         }
     }
