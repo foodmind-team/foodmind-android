@@ -89,6 +89,53 @@ class MediaUploadRepositoryTest {
         assertTrue(client.deleted.isEmpty())
     }
 
+    @Test
+    fun heicBytesAreTranscodedAndUploadedAsJpeg() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200))
+        val jpegBytes = "normalised-jpeg".toByteArray()
+
+        MediaUploadRepository(client, imageTranscoder = FakeImageTranscoder(jpegBytes)).upload("heic-bytes".toByteArray(), "image/heic")
+
+        assertEquals("image/jpeg", client.createRequest?.contentType)
+        assertEquals(jpegBytes.size.toLong(), client.createRequest?.byteSize)
+        assertEquals("347f39a5ecc0e34bc2674efeb8e2d8281c6d1f1e9889db75faff8078b3971316", client.createRequest?.checksumSha256)
+        assertEquals("normalised-jpeg", server.takeRequest().body.readUtf8())
+    }
+
+    @Test
+    fun missingMimeTypeIsTranscodedToJpeg() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200))
+
+        MediaUploadRepository(client, imageTranscoder = FakeImageTranscoder("jpeg".toByteArray())).upload("provider-bytes".toByteArray(), null)
+
+        assertEquals("image/jpeg", client.createRequest?.contentType)
+    }
+
+    @Test
+    fun supportedFormatsPassThroughWithoutTranscoding() = runTest {
+        val transcoder = FakeImageTranscoder("should-not-be-used".toByteArray())
+        val repository = MediaUploadRepository(client, imageTranscoder = transcoder)
+
+        listOf("image/jpeg", "image/png", "image/webp").forEach { contentType ->
+            server.enqueue(MockResponse().setResponseCode(200))
+            repository.upload("$contentType-bytes".toByteArray(), contentType)
+            assertEquals(contentType, client.createRequest?.contentType)
+        }
+
+        assertEquals(0, transcoder.calls)
+    }
+
+    @Test
+    fun undecodableUnsupportedImageFailsBeforeCreatingAsset() = runTest {
+        val failure = runCatching {
+            MediaUploadRepository(client, imageTranscoder = FakeImageTranscoder(null)).upload("not-an-image".toByteArray(), "image/heif")
+        }.exceptionOrNull()
+
+        assertTrue(failure is MediaUploadException)
+        assertTrue(failure?.message.orEmpty().contains("converted to JPEG"))
+        assertNull(client.createRequest)
+    }
+
     private class FakeMediaUploadClient(
         private val uploadUrl: String,
     ) : MediaUploadClient {
@@ -120,6 +167,17 @@ class MediaUploadRepositoryTest {
 
         override suspend fun deleteMediaAsset(mediaAssetId: String) {
             deleted += mediaAssetId
+        }
+    }
+
+    private class FakeImageTranscoder(
+        private val result: ByteArray?,
+    ) : ImageTranscoder {
+        var calls = 0
+
+        override fun transcodeToJpeg(bytes: ByteArray): ByteArray? {
+            calls++
+            return result
         }
     }
 }
