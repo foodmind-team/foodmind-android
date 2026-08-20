@@ -42,7 +42,7 @@ class CookingPlanTaskRepositoryTest {
     }
 
     @Test
-    fun generateAsyncSurfacesTerminalFailedWhenBackendAnswers200() = runTest {
+    fun generateAsyncSurfacesTerminalPlanWhenBackendAnswers200() = runTest {
         val repo = CookingPlanTaskRepository(
             submitAsync = {
                 Response.success(CookingPlanAsyncAcceptedResponse(planId = "plan-1", status = "FAILED"))
@@ -55,9 +55,27 @@ class CookingPlanTaskRepositoryTest {
         val result = repo.generateAsync(GenerateCookingPlanRequest())
 
         assertTrue(result.isSuccess)
-        val failed = result.getOrThrow() as AsyncSubmitResult.TerminalFailed
+        val failed = result.getOrThrow() as AsyncSubmitResult.Terminal
         assertEquals("plan-1", failed.planId)
         assertEquals("FAILED", failed.status)
+    }
+
+    @Test
+    fun generateAsyncSurfacesReusedReadyPlanWhenBackendAnswers200() = runTest {
+        val repo = CookingPlanTaskRepository(
+            submitAsync = {
+                Response.success(CookingPlanAsyncAcceptedResponse(planId = "plan-2", status = "READY"))
+            },
+            getTask = { error("not used") },
+            readPlan = { error("not used") },
+            cancelTask = { error("not used") },
+        )
+
+        val result = repo.generateAsync(GenerateCookingPlanRequest())
+
+        val reused = result.getOrThrow() as AsyncSubmitResult.Terminal
+        assertEquals("plan-2", reused.planId)
+        assertEquals("READY", reused.status)
     }
 
     @Test

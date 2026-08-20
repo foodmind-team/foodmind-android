@@ -118,8 +118,10 @@ private fun ManualCookingScreen(client: FoodMindApiClient, onBack: () -> Unit, o
                         }
                     }
                     .onFailure { asyncError = "后台生成未能在超时前完成，请稍后在计划详情中查看。" }
+            } else if (accepted is AsyncSubmitResult.Terminal && accepted.status == "READY" && planId != null) {
+                onOpenPlan(planId)
             } else {
-                val failedStatus = (accepted as? AsyncSubmitResult.TerminalFailed)?.status ?: "未知"
+                val failedStatus = (accepted as? AsyncSubmitResult.Terminal)?.status ?: "未知"
                 asyncError = "后台提交失败（$failedStatus），请改用同步生成。"
             }
         }.onFailure { asyncError = "无法提交后台生成，请检查网络后重试。" }
@@ -192,13 +194,22 @@ class CookingPlanDetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val id = intent.getStringExtra(EXTRA_PLAN_ID).orEmpty(); val client = foodMindApiClient()
-        setContent { FoodMindTheme { CookingPlanDetailScreen(client, id, ::finish) } }
+        val onHome = {
+            startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+            finish()
+        }
+        setContent { FoodMindTheme { CookingPlanDetailScreen(client, id, ::finish, onHome) } }
     }
     companion object { private const val EXTRA_PLAN_ID = "plan_id"; fun intent(context: Context, planId: String) = Intent(context, CookingPlanDetailActivity::class.java).putExtra(EXTRA_PLAN_ID, planId) }
 }
 
 @Composable
-private fun CookingPlanDetailScreen(client: FoodMindApiClient, planId: String, onBack: () -> Unit) {
+private fun CookingPlanDetailScreen(
+    client: FoodMindApiClient,
+    planId: String,
+    onBack: () -> Unit,
+    onHome: () -> Unit,
+) {
     var plan by remember { mutableStateOf<CookingPlanResponse?>(null) }
     var taskProgress by remember { mutableStateOf<CookingPlanTaskResponse?>(null) }
     var cancelling by remember { mutableStateOf(false) }
@@ -251,6 +262,8 @@ private fun CookingPlanDetailScreen(client: FoodMindApiClient, planId: String, o
                 val board = computeExecutionBoard(timeline, boardStates, boardEventId)
                 val total = timeline.size
                 val done = board.completed.size
+                var finishing by remember(planId) { mutableStateOf(false) }
+                var finishError by remember(planId) { mutableStateOf<String?>(null) }
                 var timelineExpanded by remember(planId) { mutableStateOf(false) }
                 var preparationExpanded by remember(planId) { mutableStateOf(false) }
                 LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -277,7 +290,23 @@ private fun CookingPlanDetailScreen(client: FoodMindApiClient, planId: String, o
                             modifier = Modifier.padding(top = 8.dp),
                         )
                     }
-                    when (status) {
+                    if (status == "READY" && value.finishedAt != null) {
+                        item {
+                            FoodMindSurfaceCard { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Cooking complete", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+                                Text("Your allocated ingredients have been deducted from inventory.", color = FoodMindMuted)
+                                Text(
+                                    "${value.sources.size} ${if (value.sources.size == 1) "dish" else "dishes"} · ${value.timeline.size} cooking steps" +
+                                        (value.makespanMinutes?.let { " · $it minute planned cook" } ?: ""),
+                                    color = FoodMindGreen,
+                                )
+                                if (value.reusedFromPlanId != null) {
+                                    Text("This schedule was reused from your previous equivalent plan.", color = FoodMindMuted, fontSize = 12.sp)
+                                }
+                                Button(onClick = onHome, modifier = Modifier.fillMaxWidth()) { Text("Back to Home") }
+                            } }
+                        }
+                    } else when (status) {
                         "PROCESSING" -> item {
                             FoodMindSurfaceCard { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("Building your cooking plan", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
@@ -345,13 +374,34 @@ private fun CookingPlanDetailScreen(client: FoodMindApiClient, planId: String, o
                                         progress = { if (total == 0) 0f else done.toFloat() / total },
                                         modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
                                     )
-                                    if (done > 0 || board.inProgress.isNotEmpty()) TextButton(onClick = {
+                                    if ((done > 0 || board.inProgress.isNotEmpty()) && done != total) TextButton(onClick = {
                                         val reset = timeline.associate { it.taskId to BoardState.PENDING }
                                         boardStates = reset
                                         boardEventId = 0
                                         CookingExecutionStore.save(context, planId, reset, 0)
                                     }) { Text("Reset progress") }
-                                    Text("Progress is saved on this device and does not mutate backend inventory.", color = FoodMindMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+                                    Text("Progress is saved on this device. Inventory is deducted when you finish the plan.", color = FoodMindMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+                                    Button(
+                                        onClick = {
+                                            scope.launch {
+                                                finishing = true
+                                                finishError = null
+                                                runCatching { client.finishCookingPlan(planId) }
+                                                    .onSuccess { finished ->
+                                                        CookingExecutionStore.clear(context, planId)
+                                                        plan = finished
+                                                    }
+                                                    .onFailure { finishError = friendlyCookingError(it, "Could not finish the plan. Refresh inventory or regenerate the plan.") }
+                                                finishing = false
+                                            }
+                                        },
+                                        enabled = canFinishCookingPlan(total, done, value.finishedAt) && !finishing,
+                                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                                    ) { Text(if (finishing) "Finishing plan…" else "Finish plan") }
+                                    finishError?.let { Text(it, color = FoodMindCoral, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)) }
+                                    if (value.reusedFromPlanId != null) {
+                                        Text("Reused from your previous equivalent plan.", color = FoodMindMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+                                    }
                                 } }
                             }
                             when {
@@ -364,12 +414,6 @@ private fun CookingPlanDetailScreen(client: FoodMindApiClient, planId: String, o
                                     BoardLane("Up next", board.available, FoodMindLime) { task ->
                                         TextButton(onClick = { advance(task.taskId, BoardState.IN_PROGRESS) }) { Text("Start") }
                                     }
-                                }
-                                total > 0 && done == total -> item {
-                                    FoodMindSurfaceCard { Column(Modifier.padding(16.dp)) {
-                                        Text("Cooking complete", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                                        Text("Every step in this plan is finished.", color = FoodMindMuted, modifier = Modifier.padding(top = 4.dp))
-                                    } }
                                 }
                             }
 
@@ -623,7 +667,14 @@ private object CookingExecutionStore {
             .putString(planId, json.toString())
             .apply()
     }
+
+    fun clear(context: Context, planId: String) {
+        context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().remove(planId).apply()
+    }
 }
+
+internal fun canFinishCookingPlan(total: Int, completed: Int, finishedAt: String?): Boolean =
+    total > 0 && completed == total && finishedAt == null
 
 private data class ExecutionBoard(
     val available: List<CookingTimelineTaskResponse>,

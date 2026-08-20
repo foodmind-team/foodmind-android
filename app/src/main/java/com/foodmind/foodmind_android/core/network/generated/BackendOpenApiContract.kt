@@ -2,7 +2,7 @@
 package com.foodmind.foodmind_android.core.network.generated
 
 internal object BackendOpenApiContract {
-    const val SHA256 = "d52b624725a2ee2fafe1d57bbc5f4bd473a4faec5636c4a841025c2ca9ba91a8"
+    const val SHA256 = "67adca3e69e5c9f01f241cdea831c5e223f61456ed32ec282ac78161d908e1e3"
     val operations = setOf(
         "DELETE /chat/sessions/{sessionId}",
         "DELETE /drink-records/{id}",
@@ -67,6 +67,7 @@ internal object BackendOpenApiContract {
         "POST /cooking-plans/{planId}/cancel",
         "POST /cooking-plans/{planId}/decisions",
         "POST /cooking-plans/{planId}/decisions-async",
+        "POST /cooking-plans/{planId}/finish",
         "POST /cooking-plans/{planId}/shopping-list",
         "POST /drink-records",
         "POST /food-records",
@@ -126,7 +127,7 @@ internal object BackendOpenApiContract {
         "CookingPlanPolicySource" to setOf("sourceId", "title", "url"),
         "CookingPlanQuestionOption" to setOf("label", "suggested", "value"),
         "CookingPlanRepairOption" to setOf("changes", "description", "effects", "optionId", "optionType", "revalidationStatus"),
-        "CookingPlanResponse" to setOf("assumptions", "completedAt", "completionChecklist", "confirmationQuestions", "createdAt", "decisions", "dishCompletions", "errorCode", "errorMessage", "explanation", "explanationSource", "makespanMinutes", "miseEnPlace", "planId", "planRevision", "questions", "reasons", "region", "repairOptions", "safeAlternatives", "safetyPolicy", "solverStatus", "sources", "status", "timeline"),
+        "CookingPlanResponse" to setOf("assumptions", "completedAt", "completionChecklist", "confirmationQuestions", "createdAt", "decisions", "dishCompletions", "errorCode", "errorMessage", "explanation", "explanationSource", "finishedAt", "makespanMinutes", "miseEnPlace", "planId", "planRevision", "questions", "reasons", "region", "repairOptions", "reusedFromPlanId", "safeAlternatives", "safetyPolicy", "solverStatus", "sources", "status", "timeline"),
         "CookingPlanSafetyPolicy" to setOf("effectiveAt", "region", "sources", "version"),
         "CookingPlanSource" to setOf("dishName", "sequenceNo", "sourceId", "sourceType", "targetServings"),
         "CookingPlanSummary" to setOf("completedAt", "createdAt", "makespanMinutes", "planId", "sourceCount", "status", "taskCount"),

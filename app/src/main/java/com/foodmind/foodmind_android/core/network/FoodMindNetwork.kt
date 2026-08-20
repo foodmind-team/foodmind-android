@@ -298,6 +298,9 @@ class FoodMindApiClient(
     suspend fun cookingPlanTask(planId: String): retrofit2.Response<CookingPlanTaskResponse> =
         api.cookingPlanTask(planId)
 
+    suspend fun finishCookingPlan(planId: String): CookingPlanResponse =
+        api.finishCookingPlan(planId)
+
     suspend fun cancelCookingPlanTask(planId: String): retrofit2.Response<CookingPlanResponse> =
         api.cancelCookingPlanTask(planId, "{}".toRequestBody(null))
 

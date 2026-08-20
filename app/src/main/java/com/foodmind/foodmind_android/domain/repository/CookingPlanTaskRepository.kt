@@ -27,8 +27,8 @@ class CookingPlanTaskRepository(
     /**
      * Submits an async generation. A successful submission returns an accepted handle with
      * [CookingPlanAsyncAcceptedResponse.taskId]; when the backend answers 200 with a terminal
-     * FAILED plan (submission itself failed), the returned handle has a null taskId and a
-     * non-PROCESSING status, and [AsyncSubmitResult.TerminalFailed] is returned.
+     * terminal plan, the returned handle has a null taskId and a non-PROCESSING status.
+     * READY means an equivalent schedule was reused; FAILED means submission itself failed.
      * Any transport or HTTP rejection is surfaced as [AsyncSubmitFailureException].
      */
     suspend fun generateAsync(request: GenerateCookingPlanRequest): Result<AsyncSubmitResult> = runCatching {
@@ -38,7 +38,7 @@ class CookingPlanTaskRepository(
             if (body.taskId != null && body.status == "PROCESSING") {
                 AsyncSubmitResult.Accepted(body.planId, body.taskId, body.location)
             } else {
-                AsyncSubmitResult.TerminalFailed(body.planId, body.status)
+                AsyncSubmitResult.Terminal(body.planId, body.status)
             }
         } else {
             throw IllegalStateException("Async submission rejected with HTTP ${response.code()}")
@@ -95,8 +95,8 @@ sealed interface AsyncSubmitResult {
     /** Accepted with an in-flight task handle; poll [CookingPlanTaskResponse] until 404 then read the plan. */
     data class Accepted(override val planId: String?, val taskId: String?, val location: String?) : AsyncSubmitResult
 
-    /** Submission itself failed; the backend returned a terminal FAILED plan with 200. */
-    data class TerminalFailed(override val planId: String?, val status: String?) : AsyncSubmitResult
+    /** Backend resolved immediately with either a reused READY plan or a terminal failure. */
+    data class Terminal(override val planId: String?, val status: String?) : AsyncSubmitResult
 }
 
 class AsyncSubmitFailureException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)

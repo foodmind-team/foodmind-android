@@ -211,10 +211,11 @@ private fun CookingHomeScreen(
             accountPreferences = safetyPreferences,
         )).onSuccess { accepted ->
             val planId = accepted.planId
-            if (accepted is AsyncSubmitResult.Accepted && planId != null) {
+            if (planId != null && (accepted is AsyncSubmitResult.Accepted ||
+                        (accepted is AsyncSubmitResult.Terminal && accepted.status == "READY"))) {
                 onOpenPlan(planId)
             } else {
-                val failedStatus = (accepted as? AsyncSubmitResult.TerminalFailed)?.status ?: "unknown"
+                val failedStatus = (accepted as? AsyncSubmitResult.Terminal)?.status ?: "unknown"
                 asyncError = "Background submission failed ($failedStatus). Adjust the selection and retry."
             }
         }.onFailure {
