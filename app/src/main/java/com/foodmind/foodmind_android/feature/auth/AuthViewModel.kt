@@ -18,6 +18,7 @@ data class AuthUiState(
     val email: String = "",
     val password: String = "",
     val privacyConsentAccepted: Boolean = false,
+    val showPrivacyPolicy: Boolean = false,
     val isLoading: Boolean = false,
     val isAuthenticated: Boolean = false,
     @param:StringRes val errorMessageRes: Int? = null,
@@ -42,6 +43,9 @@ class AuthViewModel : ViewModel() {
     fun updatePrivacyConsent(accepted: Boolean) = _state.update {
         it.copy(privacyConsentAccepted = accepted, errorMessageRes = null)
     }
+
+    fun openPrivacyPolicy() = _state.update { it.copy(showPrivacyPolicy = true) }
+    fun closePrivacyPolicy() = _state.update { it.copy(showPrivacyPolicy = false) }
 
     fun login() {
         val current = _state.value
