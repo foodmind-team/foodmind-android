@@ -1,6 +1,7 @@
 package com.foodmind.foodmind_android
 
 import com.foodmind.foodmind_android.core.network.CookingConfirmationQuestionResponse
+import com.foodmind.foodmind_android.core.network.CookingPlanSourceResponse
 import com.foodmind.foodmind_android.core.network.CookingQuestionOptionResponse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -53,5 +54,17 @@ class CookingActivitiesTest {
         assertFalse(canFinishCookingPlan(total = 3, completed = 2, finishedAt = null))
         assertTrue(canFinishCookingPlan(total = 3, completed = 3, finishedAt = null))
         assertFalse(canFinishCookingPlan(total = 3, completed = 3, finishedAt = "2026-08-20T14:00:00Z"))
+    }
+
+    @Test
+    fun cookAgainRestoresDistinctRecipeSelections() {
+        val sources = listOf(
+            CookingPlanSourceResponse(sourceId = "recipe-1"),
+            CookingPlanSourceResponse(sourceId = "recipe-1"),
+            CookingPlanSourceResponse(sourceId = null),
+            CookingPlanSourceResponse(sourceId = "recipe-2"),
+        )
+
+        assertEquals(listOf("recipe-1", "recipe-2"), cookAgainRecipeIds(sources))
     }
 }

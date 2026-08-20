@@ -55,6 +55,7 @@ import com.foodmind.foodmind_android.core.network.CookingConfirmationQuestionRes
 import com.foodmind.foodmind_android.core.network.CookingIngredientRequest
 import com.foodmind.foodmind_android.core.network.CookingPlanResponse
 import com.foodmind.foodmind_android.core.network.CookingPlanExecutionResponse
+import com.foodmind.foodmind_android.core.network.CookingPlanSourceResponse
 import com.foodmind.foodmind_android.core.network.CookingRepairOptionResponse
 import com.foodmind.foodmind_android.core.network.CookingPlanSummary
 import com.foodmind.foodmind_android.core.network.CookingPlanTaskResponse
@@ -198,7 +199,18 @@ class CookingPlanDetailActivity : ComponentActivity() {
             startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
             finish()
         }
-        setContent { FoodMindTheme { CookingPlanDetailScreen(client, id, ::finish, onHome) { startActivity(Intent(this, CookingHomeActivity::class.java)) } } }
+        setContent {
+            FoodMindTheme {
+                CookingPlanDetailScreen(client, id, ::finish, onHome) { recipeIds ->
+                    startActivity(
+                        Intent(this, CookingHomeActivity::class.java).putStringArrayListExtra(
+                            CookingHomeActivity.EXTRA_SELECTED_RECIPE_IDS,
+                            ArrayList(recipeIds),
+                        ),
+                    )
+                }
+            }
+        }
     }
     companion object { private const val EXTRA_PLAN_ID = "plan_id"; fun intent(context: Context, planId: String) = Intent(context, CookingPlanDetailActivity::class.java).putExtra(EXTRA_PLAN_ID, planId) }
 }
@@ -209,7 +221,7 @@ private fun CookingPlanDetailScreen(
     planId: String,
     onBack: () -> Unit,
     onHome: () -> Unit,
-    onCookAgain: () -> Unit,
+    onCookAgain: (List<String>) -> Unit,
 ) {
     var plan by remember { mutableStateOf<CookingPlanResponse?>(null) }
     var execution by remember { mutableStateOf<CookingPlanExecutionResponse?>(null) }
@@ -306,7 +318,12 @@ private fun CookingPlanDetailScreen(
                                     Text("This schedule was reused from your previous equivalent plan.", color = FoodMindMuted, fontSize = 12.sp)
                                 }
                                 AndroidSavedPlanControls(client, planId, execution, finished = true) { execution = it }
-                                OutlinedButton(onClick = onCookAgain, modifier = Modifier.fillMaxWidth()) { Text("Cook again") }
+                                OutlinedButton(
+                                    onClick = {
+                                        onCookAgain(cookAgainRecipeIds(value.sources))
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) { Text("Cook again") }
                                 Button(onClick = onHome, modifier = Modifier.fillMaxWidth()) { Text("Back to Home") }
                             } }
                         }
@@ -730,6 +747,9 @@ private enum class BoardState { PENDING, IN_PROGRESS, COMPLETED }
 
 internal fun canFinishCookingPlan(total: Int, completed: Int, finishedAt: String?): Boolean =
     total > 0 && completed == total && finishedAt == null
+
+internal fun cookAgainRecipeIds(sources: List<CookingPlanSourceResponse>): List<String> =
+    sources.mapNotNull { it.sourceId?.takeIf(String::isNotBlank) }.distinct()
 
 private data class ExecutionBoard(
     val available: List<CookingTimelineTaskResponse>,
