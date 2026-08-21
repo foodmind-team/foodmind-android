@@ -52,6 +52,43 @@ To use another host, pass an API URL with the required trailing slash:
 
 Then select the `app` configuration in Android Studio and run it on an emulator. For a physical device, use a reachable HTTPS staging URL instead of `10.0.2.2`.
 
+## Local deployment
+
+Start the full Backend stack from
+[FoodMind Infrastructure](https://github.com/foodmind-team/foodmind-infra)
+before launching Android. Wait for its readiness endpoint to return `UP`; the
+Android app must call only the Backend `/api/v1` API and never a database,
+storage service, Agent, or Inference service.
+
+For an Android emulator, the default debug URL already maps the emulator's
+`10.0.2.2` host alias to the Infra Backend on port `8080`:
+
+```powershell
+# In foodmind-infra:
+docker compose up --build -d --wait
+Invoke-RestMethod http://localhost:8080/actuator/health/readiness
+
+# In foodmind-android:
+.\gradlew.bat --no-daemon assembleDebug `
+  -Pfoodmind.debugApiBaseUrl=http://10.0.2.2:8080/api/v1/
+```
+
+Run the `app` configuration from Android Studio or install the resulting debug
+APK on the emulator. For a USB-connected physical device, do not use
+`10.0.2.2`; forward the host Backend port and use the device loopback address:
+
+```powershell
+adb reverse tcp:8080 tcp:8080
+.\gradlew.bat --no-daemon assembleDebug `
+  -Pfoodmind.debugApiBaseUrl=http://127.0.0.1:8080/api/v1/
+```
+
+Alternatively, supply a device-reachable HTTPS Backend URL with the required
+trailing `/api/v1/`. Keep signing keys, `local.properties`, service tokens, and
+cloud credentials outside Git. Stop the shared runtime from the Infra checkout
+with `docker compose down`; this retains local volumes unless `--volumes` is
+explicitly requested.
+
 ## Build variants and API URLs
 
 | Build | API URL source | Default |
