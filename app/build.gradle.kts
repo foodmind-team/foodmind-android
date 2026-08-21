@@ -8,7 +8,7 @@ plugins {
 val debugApiBaseUrl = providers.gradleProperty("foodmind.debugApiBaseUrl")
     .orElse(providers.environmentVariable("FOODMIND_API_BASE_URL"))
     // 10.0.2.2 is the Android Emulator's route to the development host.
-    .orElse("https://13.229.2.154.sslip.io/api/v1/")
+    .orElse("http://10.0.2.2:8080/api/v1/")
 
 val releaseApiBaseUrl = providers.environmentVariable("FOODMIND_API_BASE_URL")
     .orElse(providers.gradleProperty("foodmind.apiBaseUrl"))
