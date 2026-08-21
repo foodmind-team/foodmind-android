@@ -98,6 +98,28 @@ explicitly requested.
 
 Release builds reject missing, insecure, placeholder, or malformed URLs. The API base URL must end in `/api/v1/`.
 
+## API configuration and credentials
+
+Android accepts only the public Backend API base URL. Configure it temporarily
+for a command or IDE launch; include the required trailing `/api/v1/`:
+
+```powershell
+# Debug emulator; Gradle property takes precedence over the environment variable.
+.\gradlew.bat --no-daemon assembleDebug `
+  -Pfoodmind.debugApiBaseUrl=http://10.0.2.2:8080/api/v1/
+
+# Alternatively, supply a public Backend URL to Gradle.
+$env:FOODMIND_API_BASE_URL='https://<approved-backend-host>/api/v1/'
+.\gradlew.bat --no-daemon assembleDebug
+```
+
+Release builds require `FOODMIND_API_BASE_URL` to be HTTPS and reject
+placeholder or malformed values. The app does not accept API keys, database
+credentials, OneMap tokens, LLM keys, S3 secrets, or private Agent tokens.
+User authentication is obtained through the public Backend flow and stored by
+the app's session layer; do not hard-code a bearer token in Gradle, source, or
+`local.properties`.
+
 ## Contract workflow
 
 The checked-in [`contracts/backend-openapi-v1.yaml`](contracts/backend-openapi-v1.yaml) mirrors the Backend contract. With the sibling Backend checkout available, regenerate after an approved public API change:
